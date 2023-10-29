@@ -57,6 +57,7 @@ SystemPreinit(
     CorePreinit();
     NetworkStackPreinit();
     ProcessSystemPreinit();
+    ExTimerSystemPreinit();
 }
 
 STATUS

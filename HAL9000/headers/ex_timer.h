@@ -20,7 +20,21 @@ typedef struct _EX_TIMER
 
     volatile BOOLEAN    TimerStarted;
     BOOLEAN             TimerUninited;
+
+    EX_EVENT TimerEvent;
+
+    LIST_ENTRY TimerListElem;
+
 } EX_TIMER, *PEX_TIMER;
+
+struct _GLOBAL_TIMER_LIST
+{
+    LOCK TimerListLock;
+    LIST_ENTRY TimerListHead;
+};
+
+static struct _GLOBAL_TIMER_LIST m_globalTimerList;
+
 
 //******************************************************************************
 // Function:     ExTimerInit
@@ -63,6 +77,10 @@ void
 ExTimerStart(
     IN      PEX_TIMER       Timer
     );
+
+void ExTimerCheck(
+    IN      PEX_TIMER       Timer
+);
 
 //******************************************************************************
 // Function:     ExTimerStop
@@ -116,3 +134,18 @@ ExTimerCompareTimers(
     IN      PEX_TIMER     FirstElem,
     IN      PEX_TIMER     SecondElem
     );
+
+void ExTimerSystemPreinit(
+    void
+);
+
+INT64 ExTimerCompareListElems(
+   IN PLIST_ENTRY t1,
+   IN PLIST_ENTRY t2,
+   IN PVOID context
+);
+
+void ExTimerCheckAll(
+    void
+);
+
