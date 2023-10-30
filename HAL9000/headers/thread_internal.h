@@ -4,6 +4,7 @@
 #include "ref_cnt.h"
 #include "ex_event.h"
 #include "thread.h"
+#include "mutex.h"
 
 typedef enum _THREAD_STATE
 {
@@ -40,8 +41,14 @@ typedef struct _THREAD
     TID                     Id;
     char*                   Name;
 
-    // Currently the thread priority is not used for anything
-    THREAD_PRIORITY         Priority;
+    LOCK                    PriorityProtectionLock;     //guards priority fields
+
+    THREAD_PRIORITY         Priority;       //the effective priority
+    THREAD_PRIORITY         RealPriority;   //the real (original) priority
+
+    LIST_ENTRY              AcquiredMutexesList;    //the list of mutexes held by the thread
+    PMUTEX                  WaitedMutex;            //the mutex the thread waits for
+
     THREAD_STATE            State;
 
     // valid only if State == ThreadStateTerminated
@@ -281,4 +288,40 @@ SetCurrentThread(
 void
 ThreadSetPriority(
     IN      THREAD_PRIORITY     NewPriority
+    );
+
+
+//******************************************************************************
+// Function:     ThreadRecomputePriority
+// Description:  Recomputes the thread's priority by assigning the maximum obtained
+//                  by comparing its real priority with the priorities of the threads
+//                  from the waiting list and returns TRUE if a change was made
+// Returns:      void
+// Parameter:    IN PTHREAD thread
+//******************************************************************************
+
+void
+ThreadRecomputePriority(
+    IN PTHREAD thread
+    );
+
+//******************************************************************************
+// Function:     ThreadDonatePriority
+// Description:  Recomputes the thread's priority by assigning the maximum priority
+//                  from the nested priority donation process
+// Returns:      void
+// Parameter:    IN PTHREAD thread
+//******************************************************************************
+
+void
+ThreadDonatePriority(
+    INOUT PTHREAD mutexHolderThread,
+    INOUT PTHREAD currentThread
+    );
+
+INT64
+(__cdecl CustomCompareFunction) (
+    IN      PLIST_ENTRY     FirstElem,
+    IN      PLIST_ENTRY     SecondElem,
+    IN_OPT  PVOID           Context
     );

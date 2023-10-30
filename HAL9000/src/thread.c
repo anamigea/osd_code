@@ -650,7 +650,13 @@ ThreadGetPriority(
 {
     PTHREAD pThread = (NULL != Thread) ? Thread : GetCurrentThread();
 
-    return (NULL != pThread) ? pThread->Priority : 0;
+    INTR_STATE oldState;
+
+    LockAcquire(&pThread->PriorityProtectionLock, &oldState);
+    THREAD_PRIORITY priority = (NULL != pThread) ? pThread->Priority : 0;
+    LockRelease(&pThread->PriorityProtectionLock, oldState);
+
+    return priority;
 }
 
 void
@@ -659,8 +665,13 @@ ThreadSetPriority(
     )
 {
     ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
-
-    GetCurrentThread()->Priority = NewPriority;
+    
+    PTHREAD currentThread = GetCurrentThread();
+    currentThread->RealPriority = NewPriority;
+    
+    if (currentThread->Priority < NewPriority) {
+        ThreadRecomputePriority(currentThread);
+    } 
 }
 
 STATUS
@@ -793,8 +804,12 @@ _ThreadInit(
         pThread->Id = _ThreadSystemGetNextTid();
         pThread->State = ThreadStateBlocked;
         pThread->Priority = Priority;
+        pThread->RealPriority = Priority;
+        pThread->WaitedMutex = NULL;
+        InitializeListHead(&pThread->AcquiredMutexesList);
 
         LockInit(&pThread->BlockLock);
+        LockInit(&pThread->PriorityProtectionLock);
 
         LockAcquire(&m_threadSystemData.AllThreadsLock, &oldIntrState);
         InsertTailList(&m_threadSystemData.AllThreadsList, &pThread->AllList);
@@ -1238,4 +1253,91 @@ _ThreadKernelFunction(
 
     ThreadExit(exitStatus);
     NOT_REACHED;
+}
+
+//BOOLEAN
+void
+ThreadRecomputePriority(
+    IN PTHREAD thread
+)
+{ 
+    THREAD_PRIORITY current_maximum = thread->RealPriority;
+    BOOLEAN returnResult = FALSE;
+
+    //start iteration through the AcquiredMutexesList
+
+    PLIST_ENTRY mutexListEntry;
+    PMUTEX mutex;
+    PLIST_ENTRY acquiredMutexList = &thread->AcquiredMutexesList;
+
+    for (mutexListEntry = acquiredMutexList->Flink; mutexListEntry != acquiredMutexList; mutexListEntry = mutexListEntry->Flink) {
+        mutex = CONTAINING_RECORD(mutexListEntry, MUTEX, AcquiredMutexListElem);
+
+        
+        PLIST_ENTRY mutexElemList = &mutex->WaitingList;
+        //puteam sa iau head-ul listei pt ca e ordonata
+        
+        for (PLIST_ENTRY mutexElem = mutexElemList->Flink; mutexElem != mutexElemList; mutexElem = mutexElem->Flink) {
+            PTHREAD waitingThread = CONTAINING_RECORD(mutexElem, THREAD, ReadyList);
+
+            if (ThreadGetPriority(waitingThread) > current_maximum) {
+                current_maximum = ThreadGetPriority(waitingThread);
+                returnResult = TRUE;
+            }
+        }
+    }
+
+    thread->Priority = current_maximum;
+
+    //return returnResult;
+}
+
+void
+ThreadDonatePriority(
+    INOUT PTHREAD mutexHolderThread,
+    INOUT PTHREAD currentThread
+)
+{
+    ASSERT(mutexHolderThread != NULL);
+    ASSERT(currentThread != NULL);
+
+
+    BOOLEAN stayInLoop = TRUE;
+    while (mutexHolderThread != NULL && stayInLoop) {
+
+        if (ThreadGetPriority(currentThread) > ThreadGetPriority(mutexHolderThread)) {
+            mutexHolderThread->Priority = ThreadGetPriority(currentThread);
+        }
+        else {
+            stayInLoop = FALSE;
+        }
+
+        if (mutexHolderThread->WaitedMutex) {
+            currentThread = mutexHolderThread;
+            mutexHolderThread = mutexHolderThread->WaitedMutex->Holder;
+        }
+    }
+}
+
+INT64
+(__cdecl CustomCompareFunction)(
+    IN      PLIST_ENTRY     FirstElem,
+    IN      PLIST_ENTRY     SecondElem,
+    IN_OPT  PVOID           Context
+    ) 
+{
+    ASSERT(Context == NULL);
+
+    PTHREAD firstThreadElem = CONTAINING_RECORD(FirstElem, THREAD, ReadyList);
+    PTHREAD secondThreadElem = CONTAINING_RECORD(SecondElem, THREAD, ReadyList);
+
+    if (ThreadGetPriority(firstThreadElem) < ThreadGetPriority(secondThreadElem)) {
+        return 1;
+    }
+    else if (ThreadGetPriority(secondThreadElem) > ThreadGetPriority(firstThreadElem)) {
+        return -1;
+    }
+    else {
+        return 0;
+    }
 }
