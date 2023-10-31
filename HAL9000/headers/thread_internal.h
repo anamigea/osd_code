@@ -319,9 +319,3 @@ ThreadDonatePriority(
     INOUT PTHREAD currentThread
     );
 
-INT64
-(__cdecl CustomCompareFunction) (
-    IN      PLIST_ENTRY     FirstElem,
-    IN      PLIST_ENTRY     SecondElem,
-    IN_OPT  PVOID           Context
-    );
