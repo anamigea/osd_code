@@ -736,6 +736,35 @@ STATUS
 	}
 }
 
+//v1
+//void
+//ThreadSetPriority(
+//	IN      THREAD_PRIORITY     NewPriority
+//)
+//{
+//	INTR_STATE dummyState;
+//	ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
+//
+//	PTHREAD currentThread = GetCurrentThread();
+//	currentThread->RealPriority = NewPriority;
+//
+//	if (currentThread->Priority < NewPriority) {
+//		ThreadRecomputePriority(currentThread);
+//	}
+//
+//
+//		STATUS status;
+//		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
+//		status = ForEachElementExecute(&m_threadSystemData.ReadyThreadsList, RunningThreadHasHighestPriorityThanThreadInReadyList, NULL, TRUE);
+//		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
+//		//if the new priority is smaller than one of threads in ready list
+//		if (!SUCCEEDED(status)) {
+//
+//			ThreadYield();
+//		}
+//}
+
+//v2
 void
 ThreadSetPriority(
 	IN      THREAD_PRIORITY     NewPriority
@@ -751,22 +780,20 @@ ThreadSetPriority(
 		ThreadRecomputePriority(currentThread);
 	}
 
-	//THREAD_PRIORITY currPriority = currentThread->Priority;
-	//GetCurrentThread()->Priority = NewPriority;
+	THREAD_PRIORITY currPriority = currentThread->Priority;
 
-	//if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
-	//{
-		STATUS status;
+	if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
+	{
 		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
-		status = ForEachElementExecute(&m_threadSystemData.ReadyThreadsList, RunningThreadHasHighestPriorityThanThreadInReadyList, NULL, TRUE);
+		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
 		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
+		PTHREAD firstThread = CONTAINING_RECORD(firstElem, THREAD, ReadyList);
 		//if the new priority is smaller than one of threads in ready list
-		if (!SUCCEEDED(status)) {
-
+		if (firstThread->Priority < GetCurrentThread()->Priority)
+		{
 			ThreadYield();
 		}
-	//}
-	
+	}
 }
 
 STATUS
