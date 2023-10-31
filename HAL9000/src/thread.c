@@ -709,13 +709,17 @@ ThreadGetPriority(
 {
 	PTHREAD pThread = (NULL != Thread) ? Thread : GetCurrentThread();
 
-    INTR_STATE oldState;
+	if (NULL == pThread) {
+		return 0;
+	}
+	
+	//INTR_STATE oldState;
 
-    LockAcquire(&pThread->PriorityProtectionLock, &oldState);
-    THREAD_PRIORITY priority = (NULL != pThread) ? pThread->Priority : 0;
-    LockRelease(&pThread->PriorityProtectionLock, oldState);
+	//LockAcquire(&pThread->PriorityProtectionLock, &oldState);
+	THREAD_PRIORITY priority = pThread->Priority;
+	//LockRelease(&pThread->PriorityProtectionLock, oldState);
 
-    return priority;
+	return priority;
 }
 
 
