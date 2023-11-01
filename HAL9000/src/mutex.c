@@ -62,9 +62,9 @@ MutexAcquire(
         }
         InsertOrderedList(&Mutex->WaitingList, &pCurrentThread->ReadyList, ThreadComparePriorityReadyList, NULL);
 
+		pCurrentThread->WaitedMutex = Mutex; //the thread waits for the mutex
         ThreadTakeBlockLock();
         LockRelease(&Mutex->MutexLock, dummyState);
-		pCurrentThread->WaitedMutex = Mutex; //the thread waits for the mutex
         ThreadBlock();
         LockAcquire(&Mutex->MutexLock, &dummyState );
     }

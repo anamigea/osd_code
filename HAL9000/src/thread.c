@@ -712,7 +712,7 @@ ThreadGetPriority(
 	if (NULL == pThread) {
 		return 0;
 	}
-	
+
 	//INTR_STATE oldState;
 
 	//LockAcquire(&pThread->PriorityProtectionLock, &oldState);
@@ -774,7 +774,7 @@ ThreadSetPriority(
 	IN      THREAD_PRIORITY     NewPriority
 )
 {
-	INTR_STATE dummyState;
+
 	ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
 
 	PTHREAD currentThread = GetCurrentThread();
@@ -788,6 +788,7 @@ ThreadSetPriority(
 
 	if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
 	{
+		INTR_STATE dummyState;
 		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
 		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
 		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
@@ -1386,7 +1387,7 @@ void
 ThreadRecomputePriority(
     IN PTHREAD thread
 )
-{ 
+{
     THREAD_PRIORITY current_maximum = thread->RealPriority;
     BOOLEAN returnResult = FALSE;
 
@@ -1397,12 +1398,12 @@ ThreadRecomputePriority(
     PLIST_ENTRY acquiredMutexList = &thread->AcquiredMutexesList;
 
     for (mutexListEntry = acquiredMutexList->Flink; mutexListEntry != acquiredMutexList; mutexListEntry = mutexListEntry->Flink) {
-        mutex = CONTAINING_RECORD(mutexListEntry, MUTEX, AcquiredMutexListElem);
+		mutex = CONTAINING_RECORD(mutexListEntry, MUTEX, AcquiredMutexListElem);
 
-        
+
         PLIST_ENTRY mutexElemList = &mutex->WaitingList;
         //puteam sa iau head-ul listei pt ca e ordonata
-        
+
         for (PLIST_ENTRY mutexElem = mutexElemList->Flink; mutexElem != mutexElemList; mutexElem = mutexElem->Flink) {
             PTHREAD waitingThread = CONTAINING_RECORD(mutexElem, THREAD, ReadyList);
 
