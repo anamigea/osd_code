@@ -6,110 +6,110 @@
 
 STATUS
 ExEventInit(
-    OUT     EX_EVENT*     Event,
-    IN      EX_EVT_TYPE   EventType,
-    IN      BOOLEAN       Signaled
-    )
+	OUT     EX_EVENT* Event,
+	IN      EX_EVT_TYPE   EventType,
+	IN      BOOLEAN       Signaled
+)
 {
-    if (NULL == Event)
-    {
-        return STATUS_INVALID_PARAMETER1;
-    }
+	if (NULL == Event)
+	{
+		return STATUS_INVALID_PARAMETER1;
+	}
 
-    if (EventType >= ExEventTypeReserved)
-    {
-        return STATUS_INVALID_PARAMETER2;
-    }
+	if (EventType >= ExEventTypeReserved)
+	{
+		return STATUS_INVALID_PARAMETER2;
+	}
 
-    LockInit(&Event->EventLock);
-    InitializeListHead(&Event->WaitingList);
+	LockInit(&Event->EventLock);
+	InitializeListHead(&Event->WaitingList);
 
-    Event->EventType = EventType;
-    _InterlockedExchange8(&Event->Signaled, Signaled );
+	Event->EventType = EventType;
+	_InterlockedExchange8(&Event->Signaled, Signaled);
 
-    return STATUS_SUCCESS;
+	return STATUS_SUCCESS;
 }
 
 void
 ExEventSignal(
-    INOUT   EX_EVENT*      Event
-    )
+	INOUT   EX_EVENT* Event
+)
 {
-    INTR_STATE oldState;
-    PLIST_ENTRY pEntry;
+	INTR_STATE oldState;
+	PLIST_ENTRY pEntry;
 
-    ASSERT(NULL != Event);
+	ASSERT(NULL != Event);
 
-    pEntry = NULL;
+	pEntry = NULL;
 
-    LockAcquire(&Event->EventLock, &oldState);
-    _InterlockedExchange8(&Event->Signaled, TRUE);
-    
-    for(pEntry = RemoveHeadList(&Event->WaitingList);
-        pEntry != &Event->WaitingList;
-        pEntry = RemoveHeadList(&Event->WaitingList)
-            )
-    {
-        PTHREAD pThreadToSignal = CONTAINING_RECORD(pEntry, THREAD, ReadyList);
-        ThreadUnblock(pThreadToSignal);
+	LockAcquire(&Event->EventLock, &oldState);
+	_InterlockedExchange8(&Event->Signaled, TRUE);
 
-        if (ExEventTypeSynchronization == Event->EventType)
-        {
-            // sorry, we only wake one thread
-            // we must not clear the signal here, because the first thread which will
-            // wake up will claar it :)
-            break;
-        }
-    }
+	for (pEntry = RemoveHeadList(&Event->WaitingList);
+		pEntry != &Event->WaitingList;
+		pEntry = RemoveHeadList(&Event->WaitingList)
+		)
+	{
+		PTHREAD pThreadToSignal = CONTAINING_RECORD(pEntry, THREAD, ReadyList);
+		ThreadUnblock(pThreadToSignal);
 
-    LockRelease(&Event->EventLock, oldState);
+		if (ExEventTypeSynchronization == Event->EventType)
+		{
+			// sorry, we only wake one thread
+			// we must not clear the signal here, because the first thread which will
+			// wake up will claar it :)
+			break;
+		}
+	}
+
+	LockRelease(&Event->EventLock, oldState);
 }
 
 void
 ExEventClearSignal(
-    INOUT   EX_EVENT*      Event
-    )
+	INOUT   EX_EVENT* Event
+)
 {
-    ASSERT( NULL != Event );
+	ASSERT(NULL != Event);
 
-    _InterlockedExchange8(&Event->Signaled, FALSE);
+	_InterlockedExchange8(&Event->Signaled, FALSE);
 }
 
 void
 ExEventWaitForSignal(
-    INOUT   EX_EVENT*      Event
-    )
+	INOUT   EX_EVENT* Event
+)
 {
-    PTHREAD pCurrentThread;
-    INTR_STATE dummyState;
-    INTR_STATE oldState;
-    BYTE newState;
+	PTHREAD pCurrentThread;
+	INTR_STATE dummyState;
+	INTR_STATE oldState;
+	BYTE newState;
 
-    ASSERT(NULL != Event);
+	ASSERT(NULL != Event);
 
-    pCurrentThread = GetCurrentThread();
+	pCurrentThread = GetCurrentThread();
 
-    ASSERT( NULL != pCurrentThread);
+	ASSERT(NULL != pCurrentThread);
 
-    newState = ExEventTypeNotification == Event->EventType;
+	newState = ExEventTypeNotification == Event->EventType;
 
-    oldState = CpuIntrDisable();
-    while (TRUE != _InterlockedCompareExchange8(&Event->Signaled, newState, TRUE))
-    {
-        LockAcquire(&Event->EventLock, &dummyState);
-        InsertTailList(&Event->WaitingList, &pCurrentThread->ReadyList);
-        ThreadTakeBlockLock();
-        LockRelease(&Event->EventLock, dummyState);
-        ThreadBlock();
+	oldState = CpuIntrDisable();
+	while (TRUE != _InterlockedCompareExchange8(&Event->Signaled, newState, TRUE))
+	{
+		LockAcquire(&Event->EventLock, &dummyState);
+		InsertOrderedList(&Event->WaitingList, &pCurrentThread->ReadyList, ThreadComparePriorityReadyList, NULL);
+		ThreadTakeBlockLock();
+		LockRelease(&Event->EventLock, dummyState);
+		ThreadBlock();
 
-        // if we are waiting for a notification type event => all threads
-        // must be woken up => we have no reason to check the state of the
-        // event again
-        if (ExEventTypeNotification == Event->EventType)
-        {
-            break;
-        }
-    }
+		// if we are waiting for a notification type event => all threads
+		// must be woken up => we have no reason to check the state of the
+		// event again
+		if (ExEventTypeNotification == Event->EventType)
+		{
+			break;
+		}
+	}
 
-    CpuIntrSetState(oldState);
+	CpuIntrSetState(oldState);
 }

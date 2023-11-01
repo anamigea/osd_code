@@ -20,12 +20,12 @@
 //******************************************************************************
 STATUS
 ThreadCreate(
-    IN_Z        char*               Name,
+    IN_Z        char* Name,
     IN          THREAD_PRIORITY     Priority,
     IN          PFUNC_ThreadStart   Function,
     IN_OPT      PVOID               Context,
-    OUT_PTR     PTHREAD*            Thread
-    );
+    OUT_PTR     PTHREAD* Thread
+);
 
 //******************************************************************************
 // Function:     ThreadYield
@@ -39,7 +39,7 @@ ThreadCreate(
 void
 ThreadYield(
     void
-    );
+);
 
 //******************************************************************************
 // Function:     ThreadExit
@@ -50,7 +50,7 @@ ThreadYield(
 void
 ThreadExit(
     IN      STATUS              ExitStatus
-    );
+);
 
 //******************************************************************************
 // Function:     ThreadWaitForTermination
@@ -63,8 +63,8 @@ ThreadExit(
 void
 ThreadWaitForTermination(
     IN      PTHREAD             Thread,
-    OUT     STATUS*             ExitStatus
-    );
+    OUT     STATUS* ExitStatus
+);
 
 //******************************************************************************
 // Function:     ThreadCloseHandle
@@ -80,7 +80,7 @@ ThreadWaitForTermination(
 void
 ThreadCloseHandle(
     INOUT   PTHREAD             Thread
-    );
+);
 
 //******************************************************************************
 // Function:     ThreadGetName
@@ -93,6 +93,22 @@ const
 char*
 ThreadGetName(
     IN_OPT  PTHREAD             Thread
+);
+
+//******************************************************************************
+// Function:     ThreadComparePriorityReadyList
+// Description:  Returns a negative result, if second thread's
+//               priority is less the that of the rest, positive if the opposite, and zero if
+//               equal
+// Returns:      INT8
+// Parameter:    IN PLIST_ENTRY e1
+// Parameter:    IN PLIST_ENTRY e2
+//******************************************************************************
+INT64
+(__cdecl ThreadComparePriorityReadyList) (
+    IN      PLIST_ENTRY     e1,
+    IN      PLIST_ENTRY     e2,
+    IN_OPT  PVOID           Context
     );
 
 //******************************************************************************
@@ -105,7 +121,7 @@ ThreadGetName(
 TID
 ThreadGetId(
     IN_OPT  PTHREAD             Thread
-    );
+);
 
 //******************************************************************************
 // Function:     ThreadGetPriority
@@ -118,4 +134,4 @@ ThreadGetId(
 THREAD_PRIORITY
 ThreadGetPriority(
     IN_OPT  PTHREAD             Thread
-    );
+);
