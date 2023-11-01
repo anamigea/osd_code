@@ -21,6 +21,7 @@
 #include "ex_system.h"
 #include "process_internal.h"
 #include "boot_module.h"
+#include "ex_timer.h"
 
 #define NO_OF_TSS_STACKS             7
 STATIC_ASSERT(NO_OF_TSS_STACKS <= NO_OF_IST);

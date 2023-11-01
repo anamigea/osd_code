@@ -1,4 +1,5 @@
 #pragma once
+#include <ex_event.h>
 
 typedef enum _EX_TIMER_TYPE
 {
@@ -31,9 +32,9 @@ struct _GLOBAL_TIMER_LIST
 {
     LOCK TimerListLock;
     LIST_ENTRY TimerListHead;
-};
+}_GLOBAL_TIMER_LIST;
 
-static struct _GLOBAL_TIMER_LIST m_globalTimerList;
+
 
 
 //******************************************************************************
@@ -77,10 +78,6 @@ void
 ExTimerStart(
     IN      PEX_TIMER       Timer
     );
-
-void ExTimerCheck(
-    IN      PEX_TIMER       Timer
-);
 
 //******************************************************************************
 // Function:     ExTimerStop
@@ -139,13 +136,17 @@ void ExTimerSystemPreinit(
     void
 );
 
-INT64 ExTimerCompareListElems(
-   IN PLIST_ENTRY t1,
-   IN PLIST_ENTRY t2,
-   IN PVOID context
-);
+INT64(__cdecl ExTimerCompareListElems)(
+    IN PLIST_ENTRY t1, 
+    IN PLIST_ENTRY t2, 
+    IN_OPT  PVOID Context
+    );
 
 void ExTimerCheckAll(
     void
 );
 
+STATUS(__cdecl ExTimerCheck)(
+    IN      PLIST_ENTRY       TimerEntry,
+    IN_OPT  PVOID Context
+    );
