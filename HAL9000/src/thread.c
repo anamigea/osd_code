@@ -784,21 +784,21 @@ ThreadSetPriority(
 		ThreadRecomputePriority(currentThread);
 	}
 
-	THREAD_PRIORITY currPriority = currentThread->Priority;
+	//THREAD_PRIORITY currPriority = currentThread->Priority;
 
-	if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
-	{
+	//if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
+	//{
 		INTR_STATE dummyState;
 		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
 		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
 		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
 		PTHREAD firstThread = CONTAINING_RECORD(firstElem, THREAD, ReadyList);
 		//if the new priority is smaller than one of threads in ready list
-		if (firstThread->Priority < GetCurrentThread()->Priority)
+		if (firstThread->Priority > GetCurrentThread()->Priority)
 		{
 			ThreadYield();
 		}
-	}
+	//}
 }
 
 STATUS
