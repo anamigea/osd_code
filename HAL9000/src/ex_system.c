@@ -10,5 +10,5 @@ ExSystemTimerTick(
     )
 {
     ExTimerCheckAll();
-   /* ThreadTick();*/
+    ThreadTick();
 }

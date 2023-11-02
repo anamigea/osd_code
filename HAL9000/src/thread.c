@@ -784,10 +784,10 @@ ThreadSetPriority(
 		ThreadRecomputePriority(currentThread);
 	}
 
-	//THREAD_PRIORITY currPriority = currentThread->Priority;
+	THREAD_PRIORITY currPriority = currentThread->Priority;
 
-	//if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
-	//{
+	if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
+	{
 		INTR_STATE dummyState;
 		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
 		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
@@ -798,7 +798,7 @@ ThreadSetPriority(
 		{
 			ThreadYield();
 		}
-	//}
+	}
 }
 
 STATUS
@@ -936,7 +936,7 @@ _ThreadInit(
         InitializeListHead(&pThread->AcquiredMutexesList);
 
         LockInit(&pThread->BlockLock);
-        LockInit(&pThread->PriorityProtectionLock);
+        //LockInit(&pThread->PriorityProtectionLock);
 
 		LockAcquire(&m_threadSystemData.AllThreadsLock, &oldIntrState);
 		InsertOrderedList(&m_threadSystemData.AllThreadsList, &pThread->AllList, ThreadComparePriorityReadyList, NULL);
@@ -1407,8 +1407,9 @@ ThreadRecomputePriority(
         for (PLIST_ENTRY mutexElem = mutexElemList->Flink; mutexElem != mutexElemList; mutexElem = mutexElem->Flink) {
             PTHREAD waitingThread = CONTAINING_RECORD(mutexElem, THREAD, ReadyList);
 
-            if (ThreadGetPriority(waitingThread) > current_maximum) {
-                current_maximum = ThreadGetPriority(waitingThread);
+			THREAD_PRIORITY wPriority = ThreadGetPriority(waitingThread);
+            if (wPriority > current_maximum) {
+                current_maximum = wPriority;
                 returnResult = TRUE;
             }
         }
@@ -1432,8 +1433,10 @@ ThreadDonatePriority(
     BOOLEAN stayInLoop = TRUE;
     while (mutexHolderThread != NULL && stayInLoop) {
 
-        if (ThreadGetPriority(currentThread) > ThreadGetPriority(mutexHolderThread)) {
-            mutexHolderThread->Priority = ThreadGetPriority(currentThread);
+		THREAD_PRIORITY currPriority = ThreadGetPriority(currentThread);
+		THREAD_PRIORITY mhPriority = ThreadGetPriority(mutexHolderThread);
+        if (currPriority > mhPriority) {
+            mutexHolderThread->Priority = currPriority;
         }
         else {
             stayInLoop = FALSE;

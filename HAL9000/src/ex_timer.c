@@ -137,23 +137,24 @@ ExTimerCompareTimers(
     return FirstElem->TriggerTimeUs - SecondElem->TriggerTimeUs;
 }
 
-STATUS 
+STATUS
 (__cdecl ExTimerCheck)(
     IN   PLIST_ENTRY       TimerEntry,
     IN_OPT  PVOID Context
 )
-{   
+{
     ASSERT(Context == NULL);
     PEX_TIMER Timer = CONTAINING_RECORD(TimerEntry, EX_TIMER, TimerListElem);
     if (IomuGetSystemTimeUs() >= Timer ->TriggerTimeUs && Timer ->TimerStarted)
         ExEventSignal(&Timer->TimerEvent);
-
+    if (IomuGetSystemTimeUs() < Timer->TriggerTimeUs)
+        return STATUS_UNSUCCESSFUL;
     return STATUS_SUCCESS;
 }
 
 
 //initialize global list -> initialize lock and head of the list
-void 
+void
 ExTimerSystemPreinit() {
 
     memset(&m_globalTimerList, 0, sizeof(_GLOBAL_TIMER_LIST));
@@ -163,8 +164,8 @@ ExTimerSystemPreinit() {
 
 //function to pass to the InsertOrderedList in order to compare elems
 INT64(__cdecl ExTimerCompareListElems)(
-    IN PLIST_ENTRY t1, 
-    IN PLIST_ENTRY t2, 
+    IN PLIST_ENTRY t1,
+    IN PLIST_ENTRY t2,
     IN_OPT  PVOID Context
     )
 {
