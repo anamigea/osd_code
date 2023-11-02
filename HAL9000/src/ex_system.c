@@ -9,6 +9,6 @@ ExSystemTimerTick(
     void
     )
 {
-    ExTimerCheckAll();
     ThreadTick();
+    ExTimerCheckAll();
 }

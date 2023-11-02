@@ -147,8 +147,8 @@ STATUS
     PEX_TIMER Timer = CONTAINING_RECORD(TimerEntry, EX_TIMER, TimerListElem);
     if (IomuGetSystemTimeUs() >= Timer ->TriggerTimeUs && Timer ->TimerStarted)
         ExEventSignal(&Timer->TimerEvent);
-    if (IomuGetSystemTimeUs() < Timer->TriggerTimeUs)
-        return STATUS_UNSUCCESSFUL;
+    //if (IomuGetSystemTimeUs() < Timer->TriggerTimeUs)
+    //    return STATUS_UNSUCCESSFUL;
     return STATUS_SUCCESS;
 }
 

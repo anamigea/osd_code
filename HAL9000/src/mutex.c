@@ -40,7 +40,7 @@ MutexAcquire(
 	{
 		ASSERT(Mutex->CurrentRecursivityDepth < Mutex->MaxRecursivityDepth);
 
-        //pCurrentThread->WaitedMutex = NULL;
+        pCurrentThread->WaitedMutex = NULL;
 
         Mutex->CurrentRecursivityDepth++;
         return;
@@ -57,7 +57,9 @@ MutexAcquire(
 
     while (Mutex->Holder != pCurrentThread)
     {
-        if (ThreadGetPriority(pCurrentThread) > ThreadGetPriority(Mutex->Holder)) {
+		THREAD_PRIORITY currPriority = ThreadGetPriority(pCurrentThread);
+		THREAD_PRIORITY holdPriority = ThreadGetPriority(Mutex->Holder);
+        if (currPriority > holdPriority) {
             ThreadDonatePriority(Mutex->Holder, pCurrentThread);
         }
         InsertOrderedList(&Mutex->WaitingList, &pCurrentThread->ReadyList, ThreadComparePriorityReadyList, NULL);
@@ -73,7 +75,7 @@ MutexAcquire(
 
     InsertTailList(&pCurrentThread->AcquiredMutexesList, &Mutex->AcquiredMutexListElem); //after the mutex became available
 
-	pCurrentThread->WaitedMutex = NULL;
+	//pCurrentThread->WaitedMutex = NULL;
 
     LockRelease(&Mutex->MutexLock, dummyState);
 
