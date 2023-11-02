@@ -741,40 +741,12 @@ STATUS
 }
 
 //v1
-//void
-//ThreadSetPriority(
-//	IN      THREAD_PRIORITY     NewPriority
-//)
-//{
-//	INTR_STATE dummyState;
-//	ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
-//
-//	PTHREAD currentThread = GetCurrentThread();
-//	currentThread->RealPriority = NewPriority;
-//
-//	if (currentThread->Priority < NewPriority) {
-//		ThreadRecomputePriority(currentThread);
-//	}
-//
-//
-//		STATUS status;
-//		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
-//		status = ForEachElementExecute(&m_threadSystemData.ReadyThreadsList, RunningThreadHasHighestPriorityThanThreadInReadyList, NULL, TRUE);
-//		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
-//		//if the new priority is smaller than one of threads in ready list
-//		if (!SUCCEEDED(status)) {
-//
-//			ThreadYield();
-//		}
-//}
-
-//v2
 void
 ThreadSetPriority(
 	IN      THREAD_PRIORITY     NewPriority
 )
 {
-
+	INTR_STATE dummyState;
 	ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
 
 	PTHREAD currentThread = GetCurrentThread();
@@ -784,22 +756,54 @@ ThreadSetPriority(
 		ThreadRecomputePriority(currentThread);
 	}
 
-	//THREAD_PRIORITY currPriority = currentThread->Priority;
+	THREAD_PRIORITY currPriority = currentThread->Priority;
 
-	//if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
-	//{
-		INTR_STATE dummyState;
+	if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
+	{
+		STATUS status;
 		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
-		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
-		PTHREAD firstThread = CONTAINING_RECORD(firstElem, THREAD, ReadyList);
+		status = ForEachElementExecute(&m_threadSystemData.ReadyThreadsList, RunningThreadHasHighestPriorityThanThreadInReadyList, NULL, TRUE);
 		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
 		//if the new priority is smaller than one of threads in ready list
-		if (firstThread->Priority > GetCurrentThread()->Priority)
-		{
+		if (!SUCCEEDED(status)) {
+
 			ThreadYield();
 		}
-	//}
+	}
 }
+
+//v2 -DOES NOT WORK, I HAVE NO IDEA WHY (ANA)
+//void
+//ThreadSetPriority(
+//	IN      THREAD_PRIORITY     NewPriority
+//)
+//{
+//
+//	ASSERT(ThreadPriorityLowest <= NewPriority && NewPriority <= ThreadPriorityMaximum);
+//
+//	PTHREAD currentThread = GetCurrentThread();
+//	currentThread->RealPriority = NewPriority;
+//
+//	if (currentThread->Priority < NewPriority) {
+//		ThreadRecomputePriority(currentThread);
+//	}
+//
+//	//THREAD_PRIORITY currPriority = currentThread->Priority;
+//
+//	//if (currPriority > NewPriority) //if a currently running thread calling ThreadSetPriority() would decrease its priority
+//	//{
+//		INTR_STATE dummyState;
+//		LockAcquire(&m_threadSystemData.ReadyThreadsLock, &dummyState);
+//		PLIST_ENTRY firstElem = GetListElemByIndex(&m_threadSystemData.ReadyThreadsList, 0);
+//		PTHREAD firstThread = CONTAINING_RECORD(firstElem, THREAD, ReadyList);
+//		LockRelease(&m_threadSystemData.ReadyThreadsLock, dummyState);
+//		//if the new priority is smaller than one of threads in ready list
+//		if (firstThread->Priority > GetCurrentThread()->Priority)
+//		{
+//			ThreadYield();
+//		}
+//	//}
+//}
 
 STATUS
 ThreadExecuteForEachThreadEntry(
