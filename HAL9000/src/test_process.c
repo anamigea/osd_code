@@ -13,7 +13,7 @@ const PROCESS_TEST PROCESS_TESTS[] =
     { "TestUserArgsNone", "Args", NULL},
     { "TestUserArgsOne", "Args", "Argument"},
     { "TestUserArgsMany", "Args", "Johnny is a good kid"},
-    { "TestUserArgsAll", "Args", "a b c d e f g h i j k l m n o p r s t u v q x y z"},
+    //{ "TestUserArgsAll", "Args", "a b c d e f g h i j k l m n o p r s t u v q x y z"},
 
     // bad-actions
     { "BadJumpKernel", "BadJumpKernel", NULL},

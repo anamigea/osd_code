@@ -912,7 +912,6 @@ _ThreadSetupInitialState(
     return STATUS_SUCCESS;
 }
 
-
 //  USER STACK TOP
 //  -----------------------------------------------------------------
 //  |                       Argument N-1                            |
@@ -950,7 +949,85 @@ _ThreadSetupMainThreadUserStack(
     ASSERT(ResultingStack != NULL);
     ASSERT(Process != NULL);
 
-    *ResultingStack = InitialStack;
+    char* argv = Process->FullCommandLine;
+    DWORD argc = Process->NumberOfArguments;
+    char* arguments[30];
+    //char** arguments = //(char**)malloc(argc * sizeof(char*));
+    DWORD count = 0;
+    QWORD sizeArgs = 0;
+
+
+	char* token = (char*)strtok_s(NULL, " ", &argv);
+
+	LOG("PARSE COMMAND LINE\n");
+	while (token != NULL) {
+        arguments[count++] = token;
+        sizeArgs += strlen(token) + 1;
+		token = (char*)strtok_s(NULL, " ", &argv);
+	}
+
+    LOG("HERE IS STACK\n");
+
+    QWORD stackSize =
+        sizeof(PVOID) //Return Address
+        + SHADOW_STACK_SIZE //Shadow Space = argc + argv + 2 dummy registers
+        + argc * sizeof(char*) // for each argument's address
+        + sizeArgs // for each argument value
+        ;
+
+    LOG("Command line: %s %d\n", argv, strlen(argv));
+
+    QWORD stackAllignment = 0;
+	// Ensure proper alignment by checking the least significant nibble
+	while ((stackSize & 0xF) != 8) {
+        stackAllignment += 1;
+	}
+
+    //END-START+1 - this is the size of the stack
+    stackSize += stackAllignment;
+
+    *ResultingStack = (PVOID)PtrDiff(InitialStack, stackSize);
+
+    PVOID stackKernel = NULL;
+
+    MmuGetSystemVirtualAddressForUserBuffer(*ResultingStack, stackSize, PAGE_RIGHTS_READWRITE, Process, &stackKernel);
+
+    memzero(stackKernel, (DWORD)stackSize);
+
+    // The stack is now mapped in the kernel space, we can write to it
+
+    //the data at the memory location calculated by PtrOffset(stackKernel, offset) should be treated as a pointer to a QWORD (64-bit unsigned integer) and the value at that location should be accessed or modified as a QWORD.
+    //add dummy return address
+    QWORD offset = 0;
+    *(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADC0DE;
+    offset += sizeof(void*);
+
+    //add SHADOW SPACE
+    // add argc
+    *(PQWORD)PtrOffset(stackKernel, offset) = argc;
+    offset += sizeof(QWORD);
+
+    //add argv address
+    *(char***)PtrOffset(stackKernel, offset) = (char**)PtrOffset(ResultingStack, offset + sizeof(void*) + sizeof(void*));
+    offset += sizeof(char**);
+
+    // add 2 more dummy registers
+	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
+	offset += sizeof(void*);
+	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
+    offset += sizeof(void*);
+
+    //add addresses for each argument on the stack and then each argument's value
+    QWORD argOffset = offset + argc * sizeof(char*) + stackAllignment;
+    for (DWORD i = 0; i < argc; i++) {
+		*(char**)PtrOffset(stackKernel, offset) = (char*)PtrOffset(ResultingStack, argOffset);
+		offset += sizeof(void*);
+		strcpy((char*)PtrOffset(stackKernel, argOffset), arguments[i]);
+		offset += sizeof(char*);
+		argOffset += strlen(arguments[i]) + 1;
+    }
+
+    MmuFreeSystemVirtualAddressForUserBuffer(stackKernel);
 
     return STATUS_SUCCESS;
 }
