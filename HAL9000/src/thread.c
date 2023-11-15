@@ -956,17 +956,17 @@ _ThreadSetupMainThreadUserStack(
     DWORD count = 0;
     QWORD sizeArgs = 0;
 
+    //LOG("Command line: %s %d\n", argv, strlen(argv));
 
 	char* token = (char*)strtok_s(NULL, " ", &argv);
 
-	LOG("PARSE COMMAND LINE\n");
 	while (token != NULL) {
+        //LOG("Token: %s having length %d\n", token, strlen(token));
         arguments[count++] = token;
         sizeArgs += strlen(token) + 1;
 		token = (char*)strtok_s(NULL, " ", &argv);
 	}
 
-    LOG("HERE IS STACK\n");
 
     QWORD stackSize =
         sizeof(PVOID) //Return Address
@@ -974,19 +974,22 @@ _ThreadSetupMainThreadUserStack(
         + argc * sizeof(char*) // for each argument's address
         + sizeArgs // for each argument value
         ;
+    //LOG("Initial stack : 0x%x\n", InitialStack);
 
-    LOG("Command line: %s %d\n", argv, strlen(argv));
+    //LOG("Stack size: %d\n", stackSize);
 
-    QWORD stackAllignment = 0;
+    QWORD stackAlignment = 0;
 	// Ensure proper alignment by checking the least significant nibble
 	while ((stackSize & 0xF) != 8) {
-        stackAllignment += 1;
+        stackAlignment += 1;
+        stackSize += 1;
 	}
 
-    //END-START+1 - this is the size of the stack
-    stackSize += stackAllignment;
+    //LOG("Stack alignment: %d\n", stackAllignment);
+    //LOG("Stack size after alignment: %d 0x%x\n", stackSize, stackSize);
 
     *ResultingStack = (PVOID)PtrDiff(InitialStack, stackSize);
+    //LOG("Final stack : 0x%x\n", *ResultingStack);
 
     PVOID stackKernel = NULL;
 
@@ -1001,27 +1004,34 @@ _ThreadSetupMainThreadUserStack(
     QWORD offset = 0;
     *(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADC0DE;
     offset += sizeof(void*);
+    //LOG("Ret addr : 0x%x\n", stackKernel);
 
     //add SHADOW SPACE
     // add argc
     *(PQWORD)PtrOffset(stackKernel, offset) = argc;
+	//LOG("Args addr. : 0x%x\n", PtrOffset(stackKernel, offset));
+    //LOG("Args value. : %d\n", *PtrOffset(stackKernel, offset));
     offset += sizeof(QWORD);
 
     //add argv address
     *(char***)PtrOffset(stackKernel, offset) = (char**)PtrOffset(ResultingStack, offset + sizeof(void*) + sizeof(void*));
+    //LOG("Argv addr. : 0x%x\n", PtrOffset(stackKernel, offset));
+    //LOG("Argv addr. value: 0x%x\n", *PtrOffset(stackKernel, offset));
     offset += sizeof(char**);
 
     // add 2 more dummy registers
 	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
+	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(stackKernel, offset));
 	offset += sizeof(void*);
 	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
+	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(stackKernel, offset));
     offset += sizeof(void*);
 
     //add addresses for each argument on the stack and then each argument's value
-    QWORD argOffset = offset + argc * sizeof(char*) + stackAllignment;
+    QWORD argOffset = offset + argc * sizeof(char*) + stackAlignment;
     for (DWORD i = 0; i < argc; i++) {
-		*(char**)PtrOffset(stackKernel, offset) = (char*)PtrOffset(ResultingStack, argOffset);
-		offset += sizeof(void*);
+        *(char**)PtrOffset(stackKernel, offset) = (char*)PtrOffset(*ResultingStack, argOffset);
+		//LOG("Argument addr. 0x%x argument value 0x%x\n", PtrOffset(stackKernel, offset), PtrOffset(*ResultingStack, argOffset));
 		strcpy((char*)PtrOffset(stackKernel, argOffset), arguments[i]);
 		offset += sizeof(char*);
 		argOffset += strlen(arguments[i]) + 1;

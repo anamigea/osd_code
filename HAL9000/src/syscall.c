@@ -71,7 +71,10 @@ SyscallHandler(
 			// STUDENT TODO: implement the rest of the syscalls
 		case SyscallIdFileWrite:
 			status = SyscallFileWrite(
-				(UM_HANDLE)pSyscallParameters[0], (PVOID)pSyscallParameters[1], (QWORD)pSyscallParameters[2], (QWORD*)pSyscallParameters[3]
+				(UM_HANDLE)pSyscallParameters[0],
+				(PVOID)pSyscallParameters[1],
+				(QWORD)pSyscallParameters[2],
+				(QWORD*)pSyscallParameters[3]
 			);
 			break;
 		case SyscallIdProcessExit:
@@ -200,7 +203,7 @@ SyscallFileWrite(
 	UNREFERENCED_PARAMETER(Buffer);
 	*BytesWritten = strlen((char*)Buffer) + 1; //without this i get: [ERROR][ASSERT][um_lib_helper.c][50]Condition: ((bytesWritten == cl_strlen(logBuffer) + 1)) failed
 	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
-		LOG("process-[%s]: buffer-[%s]\n", ProcessGetName(NULL), Buffer);
+		LOG("[%s]:[%s]\n", ProcessGetName(NULL), Buffer);
 		return STATUS_SUCCESS;
 	}
 
@@ -212,7 +215,7 @@ SyscallProcessExit(
 	IN      STATUS                  ExitStatus
 )
 {
-	LOG_TRACE_USERMODE("Will terminate current process with exit status 0x%x\n", ExitStatus);
+	//LOG_TRACE_USERMODE("Will terminate current process with exit status 0x%x\n", ExitStatus);
 	PPROCESS pProcess = GetCurrentProcess();
 	if (pProcess == NULL) {
 		return STATUS_UNSUCCESSFUL;
@@ -227,7 +230,7 @@ SyscallThreadExit(
 	IN  STATUS                      ExitStatus
 )
 {
-	LOG_TRACE_USERMODE("Will terminate current thread\n");
+	//LOG_TRACE_USERMODE("Will terminate current thread\n");
 
 	ThreadExit(ExitStatus);
 
