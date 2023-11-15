@@ -152,6 +152,7 @@ _IsrExceptionHandler(
 
         LOG_ERROR("Could not handle exception 0x%x [%s]\n", InterruptIndex, EXCEPTION_NAME[InterruptIndex]);
 
+        //the exception handler code such that an exception generated in a user-application does not crash the kernel
 		if (!GdtIsSegmentPrivileged((WORD)StackPointer->Registers.CS)) { //daca segmentul de cod nu e privilegiat, atunci termin eu procesul curent si nu mai ajunge sa crape
 			PPROCESS process = GetCurrentProcess();
 			ASSERT(process != NULL);
