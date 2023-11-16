@@ -974,7 +974,7 @@ _ThreadSetupMainThreadUserStack(
         + argc * sizeof(char*) // for each argument's address
         + sizeArgs // for each argument value
         ;
-    //LOG("Initial stack : 0x%x\n", InitialStack);
+    LOG("Initial stack : 0x%x\n", InitialStack);
 
     //LOG("Stack size: %d\n", stackSize);
 
@@ -989,7 +989,7 @@ _ThreadSetupMainThreadUserStack(
     //LOG("Stack size after alignment: %d 0x%x\n", stackSize, stackSize);
 
     *ResultingStack = (PVOID)PtrDiff(InitialStack, stackSize);
-    //LOG("Final stack : 0x%x\n", *ResultingStack);
+    LOG("Final stack : 0x%x\n", *ResultingStack);
 
     PVOID stackKernel = NULL;
 
@@ -1003,35 +1003,37 @@ _ThreadSetupMainThreadUserStack(
     //add dummy return address
     QWORD offset = 0;
     *(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADC0DE;
+	LOG("Ret addr : 0x%x\n", PtrOffset(*ResultingStack, offset));
+	LOG("Ret addr kernel: 0x%x\n", stackKernel);
     offset += sizeof(void*);
-    //LOG("Ret addr : 0x%x\n", stackKernel);
 
     //add SHADOW SPACE
     // add argc
     *(PQWORD)PtrOffset(stackKernel, offset) = argc;
-	//LOG("Args addr. : 0x%x\n", PtrOffset(stackKernel, offset));
-    //LOG("Args value. : %d\n", *PtrOffset(stackKernel, offset));
+	LOG("Args addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
+    LOG("Args value. : %d\n", *PtrOffset(stackKernel, offset));
     offset += sizeof(QWORD);
 
     //add argv address
-    *(char***)PtrOffset(stackKernel, offset) = (char**)PtrOffset(ResultingStack, offset + sizeof(void*) + sizeof(void*));
-    //LOG("Argv addr. : 0x%x\n", PtrOffset(stackKernel, offset));
-    //LOG("Argv addr. value: 0x%x\n", *PtrOffset(stackKernel, offset));
+    // add argv address
+    *(char***)PtrOffset(stackKernel, offset) = (char**)(PtrOffset(*ResultingStack, offset) + argc * sizeof(char*) + sizeof(QWORD));
+    LOG("Argv addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
+    LOG("Argv addr. value: 0x%x\n", *PtrOffset(stackKernel, offset + 1), *PtrOffset(stackKernel, offset));
     offset += sizeof(char**);
 
     // add 2 more dummy registers
 	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
-	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(stackKernel, offset));
+	LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
 	offset += sizeof(void*);
 	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
-	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(stackKernel, offset));
+	LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
     offset += sizeof(void*);
 
     //add addresses for each argument on the stack and then each argument's value
-    QWORD argOffset = offset + argc * sizeof(char*) + stackAlignment;
+    QWORD argOffset = offset + argc * sizeof(char*); //+ stackAlignment;
     for (DWORD i = 0; i < argc; i++) {
         *(char**)PtrOffset(stackKernel, offset) = (char*)PtrOffset(*ResultingStack, argOffset);
-		//LOG("Argument addr. 0x%x argument value 0x%x\n", PtrOffset(stackKernel, offset), PtrOffset(*ResultingStack, argOffset));
+		LOG("Argument addr. 0x%x argument value 0x%x\n", PtrOffset(*ResultingStack, offset), PtrOffset(*ResultingStack, argOffset));
 		strcpy((char*)PtrOffset(stackKernel, argOffset), arguments[i]);
 		offset += sizeof(char*);
 		argOffset += strlen(arguments[i]) + 1;
