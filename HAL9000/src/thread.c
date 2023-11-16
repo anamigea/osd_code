@@ -1015,10 +1015,9 @@ _ThreadSetupMainThreadUserStack(
     offset += sizeof(QWORD);
 
     //add argv address
-    // add argv address
-    *(char***)PtrOffset(stackKernel, offset) = (char**)(PtrOffset(*ResultingStack, offset) + argc * sizeof(char*) + sizeof(QWORD));
+    *(char***)PtrOffset(stackKernel, offset) = (char**)PtrOffset(*ResultingStack, offset + sizeof(void*) + sizeof(void*) + sizeof(char**));
     LOG("Argv addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
-    LOG("Argv addr. value: 0x%x\n", *PtrOffset(stackKernel, offset + 1), *PtrOffset(stackKernel, offset));
+    LOG("Argv addr. value: 0x%x\n", *PtrOffset(stackKernel, offset));
     offset += sizeof(char**);
 
     // add 2 more dummy registers
