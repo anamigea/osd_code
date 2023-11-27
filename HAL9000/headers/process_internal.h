@@ -5,9 +5,26 @@
 #include "process.h"
 #include "synch.h"
 #include "ex_event.h"
+#include "hash_table.h"
+#include "syscall_defs.h"
 
 #define PROCESS_MAX_PHYSICAL_FRAMES     16
 #define PROCESS_MAX_OPEN_FILES          16
+
+typedef enum
+{
+    THREAD_OBJECT,
+    PROCESS_OBJECT,
+    FILE_OBJ
+} ObjectType;
+
+typedef struct
+{
+    UM_HANDLE       id;
+    PVOID           objectPtr;
+    ObjectType      objectType;
+    HASH_ENTRY      HashEntry;
+} ObjectInfo, *PObjectInfo;
 
 typedef struct _PROCESS
 {
@@ -58,7 +75,19 @@ typedef struct _PROCESS
 
     // VaSpace used only for UM virtual memory allocations
     struct _VMM_RESERVATION_SPACE*  VaSpace;
+
+    HASH_TABLE                      ProcessHashTable;
+
+    UM_HANDLE                       CurrentIndex;
+
+    QWORD                           StdoutOpen;
+
+    PObjectInfo                      OwnObjectInfo;
+
 } PROCESS, *PPROCESS;
+
+
+
 
 //******************************************************************************
 // Function:     ProcessSystemPreinit

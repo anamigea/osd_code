@@ -82,11 +82,59 @@ SyscallHandler(
 				(STATUS)pSyscallParameters[0]
 			);
 			break;
+		/*case SyscallIdProcessCreate:
+			status = SyscallProcessCreate(
+				(char*)pSyscallParameters[0],
+				(QWORD)pSyscallParameters[1],
+				(char*)pSyscallParameters[2],
+				(QWORD)pSyscallParameters[3],
+				(UM_HANDLE*)pSyscallParameters[4]
+			);
+			break;
+		case SyscallIdProcessGetPid:
+			status = SyscallProcessGetPid(
+				(UM_HANDLE)pSyscallParameters[0],
+				(PID*)pSyscallParameters[1]
+			);
+			break;
+		case SyscallIdProcessWaitForTermination:
+			status = SyscallProcessWaitForTermination(
+				(UM_HANDLE)pSyscallParameters[0],
+				(STATUS*)pSyscallParameters[1]
+			);
+			break;
+		case SyscallIdProcessCloseHandle:
+			status = SyscallProcessCloseHandle(
+				(UM_HANDLE)pSyscallParameters[0]
+			);
+			break;
+		case SyscallIdFileCreate:
+			status = SyscallFileCreate(
+				(char*)pSyscallParameters[0],
+				(QWORD)pSyscallParameters[1],
+				(BOOLEAN)pSyscallParameters[2],
+				(BOOLEAN)pSyscallParameters[3],
+				(UM_HANDLE*)pSyscallParameters[4]
+			);
+			break;
+		case SyscallIdFileRead:
+			status = SyscallFileRead(
+				(UM_HANDLE)pSyscallParameters[0],
+				(PVOID)pSyscallParameters[1],
+				(QWORD)pSyscallParameters[2],
+				(QWORD*)pSyscallParameters[3]
+			);
+			break;
+		case SyscallIdFileClose:
+			status = SyscallFileClose(
+				(UM_HANDLE)pSyscallParameters[0]
+			);
+			break;
 		case SyscallIdThreadExit:
 			status = SyscallThreadExit(
 				(STATUS)pSyscallParameters[0]
 			);
-			break;
+			break;*/
 		default:
 			LOG_ERROR("Unimplemented syscall called from User-space!\n");
 			status = STATUS_UNSUPPORTED;
@@ -201,7 +249,7 @@ SyscallFileWrite(
 	UNREFERENCED_PARAMETER(BytesWritten);
 	UNREFERENCED_PARAMETER(BytesToWrite);
 	UNREFERENCED_PARAMETER(Buffer);
-	*BytesWritten = strlen((char*)Buffer) + 1; //without this i get: [ERROR][ASSERT][um_lib_helper.c][50]Condition: ((bytesWritten == cl_strlen(logBuffer) + 1)) failed
+	*BytesWritten = strlen((char*)Buffer) + 1; 
 	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
 		LOG("[%s]:[%s]\n", ProcessGetName(NULL), Buffer);
 		return STATUS_SUCCESS;
@@ -215,7 +263,6 @@ SyscallProcessExit(
 	IN      STATUS                  ExitStatus
 )
 {
-	//LOG_TRACE_USERMODE("Will terminate current process with exit status 0x%x\n", ExitStatus);
 	PPROCESS pProcess = GetCurrentProcess();
 	if (pProcess == NULL) {
 		return STATUS_UNSUCCESSFUL;
@@ -225,14 +272,86 @@ SyscallProcessExit(
 	return pProcess->TerminationStatus;
 }
 
-STATUS
-SyscallThreadExit(
-	IN  STATUS                      ExitStatus
-)
-{
-	//LOG_TRACE_USERMODE("Will terminate current thread\n");
-
-	ThreadExit(ExitStatus);
-
-	return STATUS_SUCCESS;
-}
+//STATUS
+//SyscallProcessCreate(
+//	IN_READS_Z(PathLength)
+//	char* ProcessPath,
+//	IN          QWORD               PathLength,
+//	IN_READS_OPT_Z(ArgLength)
+//	char* Arguments,
+//	IN          QWORD               ArgLength,
+//	OUT         UM_HANDLE*          ProcessHandle
+//) 
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS 
+//SyscallProcessGetPid(
+//	IN_OPT  UM_HANDLE               ProcessHandle,
+//	OUT     PID* ProcessId
+//)
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS
+//SyscallProcessWaitForTermination(
+//	IN      UM_HANDLE               ProcessHandle,
+//	OUT     STATUS* TerminationStatus
+//)
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS 
+//SyscallProcessCloseHandle(
+//	IN      UM_HANDLE               ProcessHandle
+//)
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS 
+//SyscallFileCreate(
+//	IN_READS_Z(PathLength)
+//	char* Path,
+//	IN          QWORD                   PathLength,
+//	IN          BOOLEAN                 Directory,
+//	IN          BOOLEAN                 Create,
+//	OUT         UM_HANDLE* FileHandle
+//)
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS
+//SyscallFileRead(
+//	IN  UM_HANDLE                   FileHandle,
+//	OUT_WRITES_BYTES(BytesToRead)
+//	PVOID                       Buffer,
+//	IN  QWORD                       BytesToRead,
+//	OUT QWORD* BytesRead
+//)
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS 
+//SyscallFileClose(
+//	IN          UM_HANDLE               FileHandle
+//) 
+//{
+//	return STATUS_SUCCESS;
+//}
+//
+//STATUS
+//SyscallThreadExit(
+//	IN  STATUS                      ExitStatus
+//)
+//{
+//
+//	ThreadExit(ExitStatus);
+//
+//	return STATUS_SUCCESS;
+//}

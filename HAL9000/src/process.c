@@ -7,6 +7,8 @@
 #include "bitmap.h"
 #include "pte.h"
 #include "pe_exports.h"
+#include "hash_table.h"
+
 
 typedef struct _PROCESS_SYSTEM_DATA
 {
@@ -511,6 +513,31 @@ _ProcessInit(
         // with the system management in case something goes wrong (PID + full process
         // list management)
         pProcess->Id = _ProcessSystemRetrieveNextPid();
+
+        //allocate memory for the objectInfo structure in the process structure
+        memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
+
+        //set the id from 1, then the object type, then the currentIndex that will give us the next UM_HANDLE
+        //set stdout to 1 -> it will help us later
+        pProcess->OwnObjectInfo->id = 1;
+        pProcess->OwnObjectInfo->objectType = PROCESS_OBJECT;
+        pProcess->StdoutOpen = 1;
+        pProcess->CurrentIndex = 1;
+
+        PHASH_TABLE_DATA pHashData;
+        DWORD dataSize = HashTablePreinit(&pProcess->ProcessHashTable, 100, sizeof(UM_HANDLE));
+        pHashData = ExAllocatePoolWithTag(PoolAllocateZeroMemory, dataSize, HEAP_PROCESS_TAG, 0);
+        if (pHashData == NULL) {
+            LOG_FUNC_ERROR_ALLOC("ExAllocatePoolWithTag", pHashData);
+            status = STATUS_HEAP_INSUFFICIENT_RESOURCES;
+            __leave;
+        }
+
+        //this would be an lternative to the ExAllocatePoolWithTag function or memzero
+        //pHashData = malloc(dataSize);
+
+
+        HashTableInit(&pProcess->ProcessHashTable, pHashData, HashFuncGenericIncremental, FIELD_OFFSET(ObjectInfo, id)-FIELD_OFFSET(ObjectInfo, HashEntry));
 
         MutexAcquire(&m_processData.ProcessListLock);
         InsertTailList(&m_processData.ProcessList, &pProcess->NextProcess);
