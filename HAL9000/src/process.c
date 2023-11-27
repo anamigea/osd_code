@@ -514,8 +514,13 @@ _ProcessInit(
         // list management)
         pProcess->Id = _ProcessSystemRetrieveNextPid();
 
+        MutexAcquire(&m_processData.ProcessListLock);
+        InsertTailList(&m_processData.ProcessList, &pProcess->NextProcess);
+        MutexRelease(&m_processData.ProcessListLock);
+
         //allocate memory for the objectInfo structure in the process structure
-        memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
+        pProcess->OwnObjectInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
+        //memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
 
         //set the id from 1, then the object type, then the currentIndex that will give us the next UM_HANDLE
         //set stdout to 1 -> it will help us later
@@ -537,11 +542,8 @@ _ProcessInit(
         //pHashData = malloc(dataSize);
 
 
-        HashTableInit(&pProcess->ProcessHashTable, pHashData, HashFuncGenericIncremental, FIELD_OFFSET(ObjectInfo, id)-FIELD_OFFSET(ObjectInfo, HashEntry));
+        HashTableInit(&pProcess->ProcessHashTable, pHashData, HashFuncGenericIncremental, FIELD_OFFSET(ObjectInfo, id) - FIELD_OFFSET(ObjectInfo, HashEntry));
 
-        MutexAcquire(&m_processData.ProcessListLock);
-        InsertTailList(&m_processData.ProcessList, &pProcess->NextProcess);
-        MutexRelease(&m_processData.ProcessListLock);
 
         LOG_TRACE_PROCESS("Process with PID 0x%X created\n", pProcess->Id);
     }
