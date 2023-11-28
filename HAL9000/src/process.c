@@ -514,6 +514,8 @@ _ProcessInit(
         // list management)
         pProcess->Id = _ProcessSystemRetrieveNextPid();
 
+        LOG("Create OwnObjectInfo for process %s\n", pProcess->ProcessName);
+
         //allocate memory for the objectInfo structure in the process structure
         pProcess->OwnObjectInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
         //memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
@@ -522,6 +524,7 @@ _ProcessInit(
         //set stdout to 1 -> it will help us later
         pProcess->OwnObjectInfo->id = 1;
         pProcess->OwnObjectInfo->objectType = PROCESS_OBJECT;
+        pProcess->OwnObjectInfo->objectPtr = pProcess; // acolesa - eu asa cred ca ar trebui
         pProcess->OwnObjectInfo->StdoutOpen = 1;
         pProcess->OwnObjectInfo->CurrentIndex = 1;
       

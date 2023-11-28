@@ -156,7 +156,7 @@ _IsrExceptionHandler(
 		if (!GdtIsSegmentPrivileged((WORD)StackPointer->Registers.CS)) { //daca segmentul de cod nu e privilegiat, atunci termin eu procesul curent si nu mai ajunge sa crape
 			PPROCESS process = GetCurrentProcess();
 			ASSERT(process != NULL);
-			LOG_ERROR("Process %s tried to access kernel memory and will be terminated!\n", ProcessGetName(process));
+			LOG_ERROR("Process %s raised exception!\n", ProcessGetName(process)); // acolesa - this is really confusing, while here is not only #GP 
 			ProcessTerminate(process);
 		}
 

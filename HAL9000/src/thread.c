@@ -949,100 +949,10 @@ _ThreadSetupMainThreadUserStack(
     ASSERT(ResultingStack != NULL);
     ASSERT(Process != NULL);
 
-    char* argv = Process->FullCommandLine;
-    DWORD argc = Process->NumberOfArguments;
-    char* arguments[30];
-    //char** arguments = //(char**)malloc(argc * sizeof(char*));
-    DWORD count = 0;
-    QWORD sizeArgs = 0;
-
-    //LOG("Command line: %s %d\n", argv, strlen(argv));
-
-	char* token = (char*)strtok_s(NULL, " ", &argv);
-
-	while (token != NULL) {
-        //LOG("Token: %s having length %d\n", token, strlen(token));
-        arguments[count++] = token;
-        sizeArgs += strlen(token) + 1;
-		token = (char*)strtok_s(NULL, " ", &argv);
-	}
-
-
-    QWORD stackSize =
-        sizeof(PVOID) //Return Address
-        + SHADOW_STACK_SIZE //Shadow Space = argc + argv + 2 dummy registers
-        + argc * sizeof(char*) // for each argument's address
-        + sizeArgs // for each argument value
-        ;
-    //LOG("Initial stack : 0x%x\n", InitialStack);
-
-    //LOG("Stack size: %d\n", stackSize);
-
-    QWORD stackAlignment = 0;
-	// Ensure proper alignment by checking the least significant nibble
-	while ((stackSize & 0xF) != 8) {
-        stackAlignment += 1;
-        stackSize += 1;
-	}
-
-    //LOG("Stack alignment: %d\n", stackAllignment);
-    //LOG("Stack size after alignment: %d 0x%x\n", stackSize, stackSize);
-
-    *ResultingStack = (PVOID)PtrDiff(InitialStack, stackSize);
-    //LOG("Final stack : 0x%x\n", *ResultingStack);
-
-    PVOID stackKernel = NULL;
-
-    MmuGetSystemVirtualAddressForUserBuffer(*ResultingStack, stackSize, PAGE_RIGHTS_READWRITE, Process, &stackKernel);
-
-    memzero(stackKernel, (DWORD)stackSize);
-
-    // The stack is now mapped in the kernel space, we can write to it
-
-    //the data at the memory location calculated by PtrOffset(stackKernel, offset) should be treated as a pointer to a QWORD (64-bit unsigned integer) and the value at that location should be accessed or modified as a QWORD.
-    //add dummy return address
-    QWORD offset = 0;
-    *(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADC0DE;
-	//LOG("Ret addr : 0x%x\n", PtrOffset(*ResultingStack, offset));
-	//LOG("Ret addr kernel: 0x%x\n", stackKernel);
-    offset += sizeof(void*);
-
-    //add SHADOW SPACE
-    // add argc
-    *(PQWORD)PtrOffset(stackKernel, offset) = argc;
-	//LOG("Args addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
-    //LOG("Args value. : %d\n", *PtrOffset(stackKernel, offset));
-    offset += sizeof(QWORD);
-
-    //add argv address
-    *(char***)PtrOffset(stackKernel, offset) = (char**)PtrOffset(*ResultingStack, offset + sizeof(void*) + sizeof(void*) + sizeof(char**));
-    //LOG("Argv addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
-    //%x e cumva generic si ia orice e hexa, dar nu cere un anumit numar de octeti
-    //LOG("Argv addr. value: 0x%x\n", *(char**)PtrOffset(stackKernel, offset));
-    offset += sizeof(char**);
-
-    // add 2 more dummy registers
-	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
-	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
-	offset += sizeof(void*);
-	*(PQWORD)PtrOffset(stackKernel, offset) = 0xDEADBEEF;
-	//LOG("Dummy shadow addr. : 0x%x\n", PtrOffset(*ResultingStack, offset));
-    offset += sizeof(void*);
-
-    //add addresses for each argument on the stack and then each argument's value
-    QWORD argOffset = offset + argc * sizeof(char*) + stackAlignment;
-    for (DWORD i = 0; i < argc; i++) {
-        *(char**)PtrOffset(stackKernel, offset) = (char*)PtrOffset(*ResultingStack, argOffset);
-        // stackKernel, trecut prin PtrOffset cred ca are cast la (char*) ca sa se faca corect adunarea in artimetica pe pointeri si, atunci, fiind (char*) iti ia doar un char.
-		//LOG("Argument addr. 0x%x argument value 0x%x\n", PtrOffset(*ResultingStack, offset), *(char**)PtrOffset(stackKernel, offset));
-		strcpy((char*)PtrOffset(stackKernel, argOffset), arguments[i]);
-		offset += sizeof(char*);
-		argOffset += strlen(arguments[i]) + 1;
-    }
-
-    MmuFreeSystemVirtualAddressForUserBuffer(stackKernel);
+    *ResultingStack = (PVOID)PtrDiff(InitialStack, SHADOW_STACK_SIZE + sizeof(PVOID));
 
     return STATUS_SUCCESS;
+
 }
 
 REQUIRES_EXCL_LOCK(m_threadSystemData.ReadyThreadsLock)
