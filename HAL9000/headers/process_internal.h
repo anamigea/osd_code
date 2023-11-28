@@ -20,11 +20,15 @@ typedef enum
 
 typedef struct
 {
-    UM_HANDLE       id;
-    PVOID           objectPtr;
-    ObjectType      objectType;
-    HASH_ENTRY      HashEntry;
-} ObjectInfo, *PObjectInfo;
+    PVOID objectPtr;
+    ObjectType objectType;
+    UM_HANDLE id;
+    HASH_ENTRY HashEntry;
+    UM_HANDLE  CurrentIndex;
+    QWORD     StdoutOpen;
+
+} ObjectInfo, * PObjectInfo;
+
 
 typedef struct _PROCESS
 {
@@ -78,15 +82,9 @@ typedef struct _PROCESS
 
     HASH_TABLE                      ProcessHashTable;
 
-    UM_HANDLE                       CurrentIndex;
-
-    QWORD                           StdoutOpen;
-
     PObjectInfo                      OwnObjectInfo;
 
 } PROCESS, *PPROCESS;
-
-
 
 
 //******************************************************************************

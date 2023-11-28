@@ -8,6 +8,7 @@
 #include "process_internal.h"
 #include "dmp_cpu.h"
 #include "thread.h"
+#include "iomu.h"
 
 extern void SyscallEntry();
 
@@ -69,6 +70,11 @@ SyscallHandler(
 			status = SyscallValidateInterface((SYSCALL_IF_VERSION)*pSyscallParameters);
 			break;
 			// STUDENT TODO: implement the rest of the syscalls
+		case SyscallIdThreadExit:
+			status = SyscallThreadExit(
+				(STATUS)pSyscallParameters[0]
+			);
+			break;
 		case SyscallIdFileWrite:
 			status = SyscallFileWrite(
 				(UM_HANDLE)pSyscallParameters[0],
@@ -82,7 +88,7 @@ SyscallHandler(
 				(STATUS)pSyscallParameters[0]
 			);
 			break;
-		/*case SyscallIdProcessCreate:
+		case SyscallIdProcessCreate:
 			status = SyscallProcessCreate(
 				(char*)pSyscallParameters[0],
 				(QWORD)pSyscallParameters[1],
@@ -91,7 +97,7 @@ SyscallHandler(
 				(UM_HANDLE*)pSyscallParameters[4]
 			);
 			break;
-		case SyscallIdProcessGetPid:
+		/*case SyscallIdProcessGetPid:
 			status = SyscallProcessGetPid(
 				(UM_HANDLE)pSyscallParameters[0],
 				(PID*)pSyscallParameters[1]
@@ -108,7 +114,7 @@ SyscallHandler(
 				(UM_HANDLE)pSyscallParameters[0]
 			);
 			break;
-		case SyscallIdFileCreate:
+		/*case SyscallIdFileCreate:
 			status = SyscallFileCreate(
 				(char*)pSyscallParameters[0],
 				(QWORD)pSyscallParameters[1],
@@ -128,11 +134,6 @@ SyscallHandler(
 		case SyscallIdFileClose:
 			status = SyscallFileClose(
 				(UM_HANDLE)pSyscallParameters[0]
-			);
-			break;
-		case SyscallIdThreadExit:
-			status = SyscallThreadExit(
-				(STATUS)pSyscallParameters[0]
 			);
 			break;*/
 		default:
@@ -249,8 +250,10 @@ SyscallFileWrite(
 	UNREFERENCED_PARAMETER(BytesWritten);
 	UNREFERENCED_PARAMETER(BytesToWrite);
 	UNREFERENCED_PARAMETER(Buffer);
-	*BytesWritten = strlen((char*)Buffer) + 1; 
-	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
+
+
+	*BytesWritten = (QWORD)strlen((char*)Buffer) + 1; 
+	if (FileHandle == UM_FILE_HANDLE_STDOUT && GetCurrentProcess()->OwnObjectInfo->StdoutOpen == 1) {
 		LOG("[%s]:[%s]\n", ProcessGetName(NULL), Buffer);
 		return STATUS_SUCCESS;
 	}
@@ -263,29 +266,115 @@ SyscallProcessExit(
 	IN      STATUS                  ExitStatus
 )
 {
-	PPROCESS pProcess = GetCurrentProcess();
-	if (pProcess == NULL) {
+	PPROCESS currentProcess = GetCurrentProcess();
+	if (currentProcess == NULL) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	pProcess->TerminationStatus = ExitStatus;
-	ProcessTerminate(pProcess);
-	return pProcess->TerminationStatus;
+
+	currentProcess->TerminationStatus = ExitStatus;
+	ProcessTerminate(currentProcess);
+
+	return currentProcess->TerminationStatus;
 }
 
-//STATUS
-//SyscallProcessCreate(
-//	IN_READS_Z(PathLength)
-//	char* ProcessPath,
-//	IN          QWORD               PathLength,
-//	IN_READS_OPT_Z(ArgLength)
-//	char* Arguments,
-//	IN          QWORD               ArgLength,
-//	OUT         UM_HANDLE*          ProcessHandle
-//) 
+STATUS
+SyscallProcessCreate(
+	IN_READS_Z(PathLength)   char* ProcessPath,
+	IN          QWORD               PathLength,
+	IN_READS_OPT_Z(ArgLength) char* Arguments,
+	IN          QWORD               ArgLength,
+	OUT         UM_HANDLE*          ProcessHandle
+) 
+{
+	UNREFERENCED_PARAMETER(ArgLength);
+
+	if (PathLength < 1) {
+		return STATUS_INVALID_PARAMETER2;
+	}
+	if (ProcessPath == NULL) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	
+	char finalPath[260];
+	//compiler will give an error for '\' -> needs to be replaced with '\\'
+	char partition[3];
+	strcpy(partition, IomuGetSystemPartitionPath());
+	if (strchr(ProcessPath, '\\') == NULL) {
+		//this means that the path is relative
+		sprintf(finalPath, "C:\\%s", ProcessPath);
+	}
+	else {
+		//we have an absolute path, example:
+		//”%SYSTEMDRIVE%Applications\Apps.exe”
+		sprintf(finalPath, "C:\\Applications\\%s", ProcessPath);
+	}
+
+	//LOG("FINAL PATH: %s\n", finalPath);
+
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+	PPROCESS newProcess;
+
+
+	STATUS statusCreateProcess = ProcessCreate(finalPath, Arguments, &newProcess);
+	if (!SUCCEEDED(statusCreateProcess)) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//LOG("CREATED!!!\n");
+
+	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
+	currentIndex += 1;
+	
+	//we only set the new id for the process
+	//the rest is done in the processCreate function -> object type, StdoutOpen
+	newProcess->OwnObjectInfo->CurrentIndex = currentIndex;
+	newProcess->OwnObjectInfo->id = currentIndex;
+	currentProcess->OwnObjectInfo->objectPtr = newProcess;
+	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
+
+	//now we can add it to the hashtable
+	HashTableInsert(&currentProcess->ProcessHashTable, &newProcess->OwnObjectInfo->HashEntry);
+
+	//LOG("INSERTED IN THE TABLE\n");
+	*ProcessHandle = currentProcess->OwnObjectInfo->CurrentIndex;
+
+	return STATUS_SUCCESS;
+}
+
+//STATUS 
+//SyscallProcessCloseHandle(
+//	IN      UM_HANDLE               ProcessHandle
+//)
 //{
-//	return STATUS_SUCCESS;
-//}
+//	if (ProcessHandle == UM_INVALID_HANDLE_VALUE) {
+//		return STATUS_INVALID_PARAMETER1;
+//	}
+//	if (ProcessHandle < 0) {
+//		return STATUS_INVALID_PARAMETER1;
+//	}
 //
+//	PPROCESS currentProcess = GetCurrentProcess();
+//	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
+//
+//	if (hashTableProcessEntry == NULL) {
+//		return STATUS_UNSUCCESSFUL;
+//	}
+//
+//	PPROCESS pProcess = CONTAINING_RECORD(hashTableProcessEntry, PROCESS, HashEntry);
+//	if (pProcess->objectType != PROCESS_OBJECT) {
+//		return STATUS_UNSUCCESSFUL;
+//	}
+//	if (pProcess->UmHandleid == ProcessHandle) {
+//		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
+//		ProcessCloseHandle(pProcess);
+//		return STATUS_SUCCESS;
+//	}
+//	else
+//		return STATUS_UNSUCCESSFUL;
+//
+//}
+
 //STATUS 
 //SyscallProcessGetPid(
 //	IN_OPT  UM_HANDLE               ProcessHandle,
@@ -304,13 +393,6 @@ SyscallProcessExit(
 //	return STATUS_SUCCESS;
 //}
 //
-//STATUS 
-//SyscallProcessCloseHandle(
-//	IN      UM_HANDLE               ProcessHandle
-//)
-//{
-//	return STATUS_SUCCESS;
-//}
 //
 //STATUS 
 //SyscallFileCreate(
@@ -345,13 +427,12 @@ SyscallProcessExit(
 //	return STATUS_SUCCESS;
 //}
 //
-//STATUS
-//SyscallThreadExit(
-//	IN  STATUS                      ExitStatus
-//)
-//{
-//
-//	ThreadExit(ExitStatus);
-//
-//	return STATUS_SUCCESS;
-//}
+STATUS
+SyscallThreadExit(
+	IN  STATUS                      ExitStatus
+)
+{
+	ThreadExit(ExitStatus);
+
+	return STATUS_SUCCESS;
+}
