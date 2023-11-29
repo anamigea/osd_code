@@ -297,22 +297,15 @@ SyscallProcessCreate(
 	
 	char finalPath[260];
 	//compiler will give an error for '\' -> needs to be replaced with '\\'
-	char partition[30]; // acolesa - here was a buffer oveflow when only 3 bytes allocated, while sys partition is 'c:\' and '\0' went outside
+	char partition[30]; 
 	strcpy(partition, IomuGetSystemPartitionPath());
-	LOG("INITIAL PATH: %s\n", ProcessPath);
-	if (strchr(ProcessPath, '\\') == ProcessPath) { // acolesa - pointer is the same like original when searched char not found
-		//this means that the path is relative
-		LOG("BUILD abs path: %sApplications\\%s\n", partition, ProcessPath);
-		sprintf(finalPath, "%sApplications\\%s", partition, ProcessPath); // acolesa - here we have to build the absolute path
+	if (strchr(ProcessPath, '\\') == ProcessPath) {
+		sprintf(finalPath, "%sApplications\\%s", partition, ProcessPath);
 	}
 	else {
-		//we have an absolute path, example:
-		//%SYSTEMDRIVE%Applications\Apps.exe
-		LOG("Let PATH as it is\n");
 		sprintf(finalPath, "%s", ProcessPath);
 	}
 
-	LOG("FINAL PATH: %s\n", finalPath);
 
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
@@ -324,7 +317,6 @@ SyscallProcessCreate(
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	LOG("CREATED!!!\n");
 
 	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
 	currentIndex += 1;
@@ -333,19 +325,14 @@ SyscallProcessCreate(
 	//the rest is done in the processCreate function -> object type, StdoutOpen
 	newProcess->OwnObjectInfo->CurrentIndex = currentIndex;
 	newProcess->OwnObjectInfo->id = currentIndex;
-	//currentProcess->OwnObjectInfo->objectPtr = newProcess; // acolesa - asta nu are sens, dupa mine
 	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
 
-	LOG("BEFORE INSERTING IN THE TABLE\n");
+	//LOG("BEFORE INSERTING IN THE TABLE\n");
 
 	//now we can add it to the hashtable
 	HashTableInsert(&currentProcess->ProcessHashTable, &newProcess->OwnObjectInfo->HashEntry);
 
-	LOG("INSERTED IN THE TABLE\n");
-
 	*ProcessHandle = currentProcess->OwnObjectInfo->CurrentIndex;
-
-	LOG("HANDLE WRITTEN\n");
 
 	return STATUS_SUCCESS;
 }
