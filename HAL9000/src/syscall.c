@@ -97,7 +97,12 @@ SyscallHandler(
 				(UM_HANDLE*)pSyscallParameters[4]
 			);
 			break;
-		/*case SyscallIdProcessGetPid:
+		case SyscallIdProcessCloseHandle:
+			status = SyscallProcessCloseHandle(
+				(UM_HANDLE)pSyscallParameters[0]
+			);
+			break;
+		case SyscallIdProcessGetPid:
 			status = SyscallProcessGetPid(
 				(UM_HANDLE)pSyscallParameters[0],
 				(PID*)pSyscallParameters[1]
@@ -107,11 +112,6 @@ SyscallHandler(
 			status = SyscallProcessWaitForTermination(
 				(UM_HANDLE)pSyscallParameters[0],
 				(STATUS*)pSyscallParameters[1]
-			);
-			break;
-		case SyscallIdProcessCloseHandle:
-			status = SyscallProcessCloseHandle(
-				(UM_HANDLE)pSyscallParameters[0]
 			);
 			break;
 		/*case SyscallIdFileCreate:
@@ -294,10 +294,10 @@ SyscallProcessCreate(
 	if (ProcessPath == NULL) {
 		return STATUS_INVALID_PARAMETER1;
 	}
-	
+
 	char finalPath[260];
 	//compiler will give an error for '\' -> needs to be replaced with '\\'
-	char partition[30]; 
+	char partition[30];
 	strcpy(partition, IomuGetSystemPartitionPath());
 	if (strchr(ProcessPath, '\\') == ProcessPath) {
 		sprintf(finalPath, "%sApplications\\%s", partition, ProcessPath);
@@ -320,14 +320,12 @@ SyscallProcessCreate(
 
 	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
 	currentIndex += 1;
-	
-	//we only set the new id for the process
+
+	//we only set the new id for the process + currentIndex
 	//the rest is done in the processCreate function -> object type, StdoutOpen
 	newProcess->OwnObjectInfo->CurrentIndex = currentIndex;
 	newProcess->OwnObjectInfo->id = currentIndex;
 	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
-
-	//LOG("BEFORE INSERTING IN THE TABLE\n");
 
 	//now we can add it to the hashtable
 	HashTableInsert(&currentProcess->ProcessHashTable, &newProcess->OwnObjectInfo->HashEntry);
@@ -337,58 +335,113 @@ SyscallProcessCreate(
 	return STATUS_SUCCESS;
 }
 
-//STATUS 
-//SyscallProcessCloseHandle(
-//	IN      UM_HANDLE               ProcessHandle
-//)
-//{
-//	if (ProcessHandle == UM_INVALID_HANDLE_VALUE) {
-//		return STATUS_INVALID_PARAMETER1;
-//	}
-//	if (ProcessHandle < 0) {
-//		return STATUS_INVALID_PARAMETER1;
-//	}
-//
-//	PPROCESS currentProcess = GetCurrentProcess();
-//	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
-//
-//	if (hashTableProcessEntry == NULL) {
-//		return STATUS_UNSUCCESSFUL;
-//	}
-//
-//	PPROCESS pProcess = CONTAINING_RECORD(hashTableProcessEntry, PROCESS, HashEntry);
-//	if (pProcess->objectType != PROCESS_OBJECT) {
-//		return STATUS_UNSUCCESSFUL;
-//	}
-//	if (pProcess->UmHandleid == ProcessHandle) {
-//		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
-//		ProcessCloseHandle(pProcess);
-//		return STATUS_SUCCESS;
-//	}
-//	else
-//		return STATUS_UNSUCCESSFUL;
-//
-//}
+STATUS 
+SyscallProcessCloseHandle(
+	IN      UM_HANDLE               ProcessHandle
+)
+{
+	if (ProcessHandle == UM_INVALID_HANDLE_VALUE) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (ProcessHandle < 0 || ProcessHandle > 100) {
+		return STATUS_INVALID_PARAMETER1;
+	}
 
-//STATUS 
-//SyscallProcessGetPid(
-//	IN_OPT  UM_HANDLE               ProcessHandle,
-//	OUT     PID* ProcessId
-//)
-//{
-//	return STATUS_SUCCESS;
-//}
-//
-//STATUS
-//SyscallProcessWaitForTermination(
-//	IN      UM_HANDLE               ProcessHandle,
-//	OUT     STATUS* TerminationStatus
-//)
-//{
-//	return STATUS_SUCCESS;
-//}
-//
-//
+	PPROCESS currentProcess = GetCurrentProcess();
+	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
+
+	if (hashTableProcessEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	PObjectInfo objectProcess = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+	
+	if (objectProcess->objectType != PROCESS_OBJECT) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	if (objectProcess->id == ProcessHandle) {
+		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&objectProcess->id);
+		ProcessCloseHandle(objectProcess->objectPtr);
+		return STATUS_SUCCESS;
+	}
+	else
+		return STATUS_UNSUCCESSFUL;
+
+}
+
+STATUS 
+SyscallProcessGetPid(
+	IN_OPT  UM_HANDLE               ProcessHandle,
+	OUT     PID*                    ProcessId
+)
+{
+	if (ProcessHandle < 0 || ProcessHandle > 100) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+
+	PPROCESS currentProcess = GetCurrentProcess();
+	if (ProcessHandle == UM_INVALID_HANDLE_VALUE) {
+		*ProcessId = currentProcess->Id;
+	}
+	else {
+		PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
+		PObjectInfo objectProcess = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+		if (objectProcess == NULL) {
+			return STATUS_UNSUCCESSFUL;
+		}
+		if (objectProcess->objectType != PROCESS_OBJECT) {
+			return STATUS_UNSUCCESSFUL;
+		}
+		PPROCESS pProcess = (PPROCESS)objectProcess->objectPtr;
+		*ProcessId = pProcess->Id;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallProcessWaitForTermination(
+	IN      UM_HANDLE               ProcessHandle,
+	OUT     STATUS* TerminationStatus
+)
+{
+	if (ProcessHandle == UM_INVALID_HANDLE_VALUE) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (ProcessHandle < 0 || ProcessHandle > 100) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+
+
+	PPROCESS currentProcess = GetCurrentProcess();
+	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ProcessHandle);
+
+	//we search for the entry, if we do no find it the UM_HANDLE is incorrect
+	if (hashTableProcessEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//then we want to obtain the object that we inserted in the hash table
+	PObjectInfo objectProcess = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+
+
+	//sincer there is only one hash table we need to make sure we have the correct object type->process
+	if (objectProcess->objectType != PROCESS_OBJECT) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//if by any chance the handle is different => an error occured, otherwise continue
+	if (objectProcess->id == ProcessHandle) {
+		ProcessWaitForTermination((PPROCESS)objectProcess->objectPtr, TerminationStatus);
+		return STATUS_SUCCESS;
+	}
+	else
+		return STATUS_UNSUCCESSFUL;
+
+}
+
+
 //STATUS 
 //SyscallFileCreate(
 //	IN_READS_Z(PathLength)

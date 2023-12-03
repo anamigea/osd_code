@@ -517,6 +517,12 @@ _ProcessInit(
         //LOG("Create OwnObjectInfo for process %s\n", pProcess->ProcessName);
 
         //allocate memory for the objectInfo structure in the process structure
+       // pProcess->OwnObjectInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
+        //memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
+
+        //set the id from 1, then the object type, then the currentIndex that will give us the next UM_HANDLE
+        //set stdout to 1 -> it will help us later
+       //allocate memory for the objectInfo structure in the process structure
         pProcess->OwnObjectInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
         //memzero(pProcess->OwnObjectInfo, sizeof(ObjectInfo));
 
@@ -527,7 +533,7 @@ _ProcessInit(
         pProcess->OwnObjectInfo->objectPtr = pProcess;
         pProcess->OwnObjectInfo->StdoutOpen = 1;
         pProcess->OwnObjectInfo->CurrentIndex = 1;
-      
+
 
         PHASH_TABLE_DATA pHashData;
         DWORD dataSize = HashTablePreinit(&pProcess->ProcessHashTable, 100, sizeof(UM_HANDLE));

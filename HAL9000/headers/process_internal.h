@@ -82,7 +82,7 @@ typedef struct _PROCESS
 
     HASH_TABLE                      ProcessHashTable;
 
-    PObjectInfo                      OwnObjectInfo;
+    PObjectInfo                     OwnObjectInfo;
 
 } PROCESS, *PPROCESS;
 
