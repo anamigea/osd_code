@@ -143,6 +143,14 @@ _IsrExceptionHandler(
         LOG_TRACE_EXCEPTION("RSP[0]: 0x%X\n", *((QWORD*)StackPointer->Registers.Rsp));
     }
 
+    //the exception handler code such that an exception generated in a user-application does not crash the kernel
+    if (! exceptionHandled && !GdtIsSegmentPrivileged((WORD)StackPointer->Registers.CS)) { //daca segmentul de cod nu e privilegiat, atunci termin eu procesul curent si nu mai ajunge sa crape
+        PPROCESS process = GetCurrentProcess();
+        ASSERT(process != NULL);
+        //LOG_ERROR("Process %s raised exception!\n", ProcessGetName(process)); // acolesa - this is really confusing, while here is not only #GP
+        ProcessTerminate(process);
+    }
+
     // no use in logging if we solved the problem
     if (!exceptionHandled)
     {
@@ -151,14 +159,6 @@ _IsrExceptionHandler(
         PPCPU pCpu;
 
         LOG_ERROR("Could not handle exception 0x%x [%s]\n", InterruptIndex, EXCEPTION_NAME[InterruptIndex]);
-
-        //the exception handler code such that an exception generated in a user-application does not crash the kernel
-		if (!GdtIsSegmentPrivileged((WORD)StackPointer->Registers.CS)) { //daca segmentul de cod nu e privilegiat, atunci termin eu procesul curent si nu mai ajunge sa crape
-			PPROCESS process = GetCurrentProcess();
-			ASSERT(process != NULL);
-			LOG_ERROR("Process %s raised exception!\n", ProcessGetName(process)); // acolesa - this is really confusing, while here is not only #GP 
-			ProcessTerminate(process);
-		}
 
         DumpInterruptStack(StackPointer, ErrorCodeAvailable );
         DumpControlRegisters();
