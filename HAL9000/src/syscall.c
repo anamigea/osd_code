@@ -114,7 +114,7 @@ SyscallHandler(
 				(STATUS*)pSyscallParameters[1]
 			);
 			break;
-		/*case SyscallIdFileCreate:
+		case SyscallIdFileCreate:
 			status = SyscallFileCreate(
 				(char*)pSyscallParameters[0],
 				(QWORD)pSyscallParameters[1],
@@ -135,7 +135,7 @@ SyscallHandler(
 			status = SyscallFileClose(
 				(UM_HANDLE)pSyscallParameters[0]
 			);
-			break;*/
+			break;
 		default:
 			LOG_ERROR("Unimplemented syscall called from User-space!\n");
 			status = STATUS_UNSUPPORTED;
@@ -442,39 +442,169 @@ SyscallProcessWaitForTermination(
 }
 
 
-//STATUS 
-//SyscallFileCreate(
-//	IN_READS_Z(PathLength)
-//	char* Path,
-//	IN          QWORD                   PathLength,
-//	IN          BOOLEAN                 Directory,
-//	IN          BOOLEAN                 Create,
-//	OUT         UM_HANDLE* FileHandle
-//)
-//{
-//	return STATUS_SUCCESS;
-//}
-//
-//STATUS
-//SyscallFileRead(
-//	IN  UM_HANDLE                   FileHandle,
-//	OUT_WRITES_BYTES(BytesToRead)
-//	PVOID                       Buffer,
-//	IN  QWORD                       BytesToRead,
-//	OUT QWORD* BytesRead
-//)
-//{
-//	return STATUS_SUCCESS;
-//}
-//
-//STATUS 
-//SyscallFileClose(
-//	IN          UM_HANDLE               FileHandle
-//) 
-//{
-//	return STATUS_SUCCESS;
-//}
-//
+STATUS 
+SyscallFileCreate(
+	IN_READS_Z(PathLength)
+	char* Path,
+	IN          QWORD                   PathLength,
+	IN          BOOLEAN                 Directory,
+	IN          BOOLEAN                 Create,
+	OUT         UM_HANDLE* FileHandle
+)
+{
+	STATUS pathStatus = MmuIsBufferValid((PVOID)Path, PathLength, PAGE_RIGHTS_READ, GetCurrentProcess());
+	if (!SUCCEEDED(pathStatus))
+	{
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (Path == NULL) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (PathLength < 2) {
+		return STATUS_INVALID_PARAMETER2;
+	}
+	
+
+	char finalPath[260];
+	//compiler will give an error for '\' -> needs to be replaced with '\\'
+	char partition[30];
+	strcpy(partition, IomuGetSystemPartitionPath());
+	if (strchr(Path, '\\') == Path) {
+		sprintf(finalPath, "%sApplications\\%s", partition, Path);
+	}
+	else {
+		sprintf(finalPath, "%s", Path);
+	}
+
+	PFILE_OBJECT newFile;
+	STATUS createFile = IoCreateFile(&newFile, finalPath, Directory, Create, FALSE);
+
+	if (!SUCCEEDED(createFile)) {
+		return createFile;
+	}
+
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
+	currentIndex += 1;
+
+	PObjectInfo fileInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
+
+	if (fileInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	fileInfo->id = currentIndex;
+	fileInfo->objectPtr = newFile;
+	fileInfo->objectType = FILE_OBJ;
+	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
+
+	HashTableInsert(&currentProcess->ProcessHashTable, &fileInfo->HashEntry);
+
+	*FileHandle = currentProcess->OwnObjectInfo->CurrentIndex;
+
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallFileRead(
+	IN  UM_HANDLE                   FileHandle,
+	OUT_WRITES_BYTES(BytesToRead)
+	PVOID                       Buffer,
+	IN  QWORD                       BytesToRead,
+	OUT QWORD* BytesRead
+)
+{
+	if (FileHandle == UM_INVALID_HANDLE_VALUE) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (FileHandle < 0 || FileHandle > 100) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	STATUS bufferStatus = MmuIsBufferValid(&Buffer, BytesToRead, PAGE_RIGHTS_READ, GetCurrentProcess());
+	if (!SUCCEEDED(bufferStatus))
+	{
+		return STATUS_INVALID_PARAMETER2;
+	}
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+
+	PHASH_ENTRY hashTableFileEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&FileHandle);
+	if (hashTableFileEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	PObjectInfo objectFile = CONTAINING_RECORD(hashTableFileEntry, ObjectInfo, HashEntry);
+
+	if (objectFile->objectType != FILE_OBJ) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	if (objectFile->id == FileHandle) {
+		PFILE_OBJECT myFile = objectFile->objectPtr;
+		STATUS fileStatus = IoReadFile(myFile, BytesToRead, &myFile->CurrentByteOffset, Buffer, BytesRead);
+		if (!SUCCEEDED(fileStatus)) {
+			return STATUS_UNSUCCESSFUL;
+		}
+		return STATUS_SUCCESS;
+	}
+	else
+		return STATUS_UNSUCCESSFUL;
+}
+
+STATUS 
+SyscallFileClose(
+	IN          UM_HANDLE               FileHandle
+) 
+{
+	if (FileHandle == UM_INVALID_HANDLE_VALUE) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (FileHandle < 0 || FileHandle > 100) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+
+	if (FileHandle == UM_FILE_HANDLE_STDOUT && currentProcess->OwnObjectInfo->StdoutOpen == 1) {
+		currentProcess->OwnObjectInfo->StdoutOpen = 0;
+		return STATUS_SUCCESS;
+	}
+	if (FileHandle == UM_FILE_HANDLE_STDOUT && currentProcess->OwnObjectInfo->StdoutOpen != 1) {
+		return STATUS_SUCCESS;
+	}
+
+	PHASH_ENTRY hashTableFileEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&FileHandle);
+	if (hashTableFileEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	PObjectInfo objectFile = CONTAINING_RECORD(hashTableFileEntry, ObjectInfo, HashEntry);
+
+	if (objectFile->objectType != FILE_OBJ) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	if (objectFile->id == FileHandle) {
+		PFILE_OBJECT myFile = objectFile->objectPtr;
+		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&objectFile->HashEntry);
+		STATUS fileStatus = IoCloseFile(myFile);
+		if (!SUCCEEDED(fileStatus)) {
+			return STATUS_UNSUCCESSFUL;
+		}
+		return STATUS_SUCCESS;
+	}
+	else
+		return STATUS_UNSUCCESSFUL;
+}
+
 STATUS
 SyscallThreadExit(
 	IN  STATUS                      ExitStatus
