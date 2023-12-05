@@ -951,8 +951,9 @@ _ThreadSetupMainThreadUserStack(
 
     char* argv = Process->FullCommandLine;
     DWORD argc = Process->NumberOfArguments;
-    char* arguments[30];
-    //char** arguments = //(char**)malloc(argc * sizeof(char*));
+
+    //char* arguments[30];
+    char** arguments = (char**)ExAllocatePoolWithTag(PoolAllocateZeroMemory, (DWORD)(argc * sizeof(char*)), HEAP_TEMP_TAG, 0);
     DWORD count = 0;
     QWORD sizeArgs = 0;
 
@@ -962,7 +963,10 @@ _ThreadSetupMainThreadUserStack(
 
     while (token != NULL) {
         //LOG("Token: %s having length %d\n", token, strlen(token));
-        arguments[count++] = token;
+        //arguments[count++] = token;
+        arguments[count] = (char*)ExAllocatePoolWithTag(PoolAllocateZeroMemory, (DWORD)(strlen(token) + 1), HEAP_TEMP_TAG, 0);
+        strcpy(arguments[count], token);
+        count++;
         sizeArgs += strlen(token) + 1;
         token = (char*)strtok_s(NULL, " ", &argv);
     }
