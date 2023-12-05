@@ -252,7 +252,7 @@ SyscallFileWrite(
 	UNREFERENCED_PARAMETER(Buffer);
 
 
-	*BytesWritten = (QWORD)strlen((char*)Buffer) + 1; 
+	*BytesWritten = (QWORD)strlen((char*)Buffer) + 1;
 	if (FileHandle == UM_FILE_HANDLE_STDOUT && GetCurrentProcess()->OwnObjectInfo->StdoutOpen == 1) {
 		LOG("[%s]:[%s]\n", ProcessGetName(NULL), Buffer);
 		return STATUS_SUCCESS;
@@ -284,7 +284,7 @@ SyscallProcessCreate(
 	IN_READS_OPT_Z(ArgLength) char* Arguments,
 	IN          QWORD               ArgLength,
 	OUT         UM_HANDLE*          ProcessHandle
-) 
+)
 {
 	UNREFERENCED_PARAMETER(ArgLength);
 
@@ -335,7 +335,7 @@ SyscallProcessCreate(
 	return STATUS_SUCCESS;
 }
 
-STATUS 
+STATUS
 SyscallProcessCloseHandle(
 	IN      UM_HANDLE               ProcessHandle
 )
@@ -355,7 +355,7 @@ SyscallProcessCloseHandle(
 	}
 
 	PObjectInfo objectProcess = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
-	
+
 	if (objectProcess->objectType != PROCESS_OBJECT) {
 		return STATUS_UNSUCCESSFUL;
 	}
@@ -370,7 +370,7 @@ SyscallProcessCloseHandle(
 
 }
 
-STATUS 
+STATUS
 SyscallProcessGetPid(
 	IN_OPT  UM_HANDLE               ProcessHandle,
 	OUT     PID*                    ProcessId
@@ -442,7 +442,7 @@ SyscallProcessWaitForTermination(
 }
 
 
-STATUS 
+STATUS
 SyscallFileCreate(
 	IN_READS_Z(PathLength)
 	char* Path,
@@ -463,7 +463,7 @@ SyscallFileCreate(
 	if (PathLength < 1) {
 		return STATUS_INVALID_PARAMETER2;
 	}
-	
+
 
 	char finalPath[260];
 	//compiler will give an error for '\' -> needs to be replaced with '\\'
@@ -554,10 +554,10 @@ SyscallFileRead(
 		return STATUS_UNSUCCESSFUL;
 }
 
-STATUS 
+STATUS
 SyscallFileClose(
 	IN          UM_HANDLE               FileHandle
-) 
+)
 {
 	if (FileHandle == UM_INVALID_HANDLE_VALUE) {
 		return STATUS_INVALID_PARAMETER1;
