@@ -460,7 +460,7 @@ SyscallFileCreate(
 	if (Path == NULL) {
 		return STATUS_INVALID_PARAMETER1;
 	}
-	if (PathLength < 2) {
+	if (PathLength < 1) {
 		return STATUS_INVALID_PARAMETER2;
 	}
 	
@@ -470,19 +470,23 @@ SyscallFileCreate(
 	char partition[30];
 	strcpy(partition, IomuGetSystemPartitionPath());
 	if (strchr(Path, '\\') == Path) {
-		sprintf(finalPath, "%sApplications\\%s", partition, Path);
+		sprintf(finalPath, "%s%s", partition, Path);
 	}
 	else {
 		sprintf(finalPath, "%s", Path);
 	}
 
+	/*LOG("FINAL PATH: %s\n", finalPath);*/
+
 	PFILE_OBJECT newFile;
 	STATUS createFile = IoCreateFile(&newFile, finalPath, Directory, Create, FALSE);
 
 	if (!SUCCEEDED(createFile)) {
+		/*LOG("CREATE FILE FAILED\n");*/
 		return createFile;
 	}
 
+	/*LOG("Create file succeeded\n");*/
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
 	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
@@ -501,7 +505,7 @@ SyscallFileCreate(
 
 	HashTableInsert(&currentProcess->ProcessHashTable, &fileInfo->HashEntry);
 
-	*FileHandle = currentProcess->OwnObjectInfo->CurrentIndex;
+	*FileHandle = fileInfo->id;
 
 	return STATUS_SUCCESS;
 }
@@ -566,9 +570,6 @@ SyscallFileClose(
 	if (FileHandle < 0 || FileHandle > 100) {
 		return STATUS_INVALID_PARAMETER1;
 	}
-	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
-		return STATUS_INVALID_PARAMETER1;
-	}
 
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
@@ -578,7 +579,7 @@ SyscallFileClose(
 		return STATUS_SUCCESS;
 	}
 	if (FileHandle == UM_FILE_HANDLE_STDOUT && currentProcess->OwnObjectInfo->StdoutOpen != 1) {
-		return STATUS_SUCCESS;
+		return STATUS_UNSUCCESSFUL;
 	}
 
 	PHASH_ENTRY hashTableFileEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&FileHandle);
@@ -597,6 +598,7 @@ SyscallFileClose(
 		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&objectFile->HashEntry);
 		STATUS fileStatus = IoCloseFile(myFile);
 		if (!SUCCEEDED(fileStatus)) {
+			LOG("COULD NOT CLOSE THE FILE!\n");
 			return STATUS_UNSUCCESSFUL;
 		}
 		return STATUS_SUCCESS;
