@@ -476,17 +476,14 @@ SyscallFileCreate(
 		sprintf(finalPath, "%s", Path);
 	}
 
-	/*LOG("FINAL PATH: %s\n", finalPath);*/
-
 	PFILE_OBJECT newFile;
 	STATUS createFile = IoCreateFile(&newFile, finalPath, Directory, Create, FALSE);
 
 	if (!SUCCEEDED(createFile)) {
-		/*LOG("CREATE FILE FAILED\n");*/
 		return createFile;
 	}
 
-	/*LOG("Create file succeeded\n");*/
+
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
 	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
@@ -528,13 +525,15 @@ SyscallFileRead(
 	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
 		return STATUS_INVALID_PARAMETER1;
 	}
-	STATUS bufferStatus = MmuIsBufferValid(&Buffer, BytesToRead, PAGE_RIGHTS_READ, GetCurrentProcess());
+	
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+	STATUS bufferStatus = MmuIsBufferValid(Buffer, sizeof(Buffer), PAGE_RIGHTS_READ, currentProcess);
 	if (!SUCCEEDED(bufferStatus))
 	{
 		return STATUS_INVALID_PARAMETER2;
 	}
-	PPROCESS currentProcess;
-	currentProcess = GetCurrentProcess();
+
 
 	PHASH_ENTRY hashTableFileEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&FileHandle);
 	if (hashTableFileEntry == NULL) {
@@ -543,11 +542,7 @@ SyscallFileRead(
 
 	PObjectInfo objectFile = CONTAINING_RECORD(hashTableFileEntry, ObjectInfo, HashEntry);
 
-	if (objectFile->objectType != FILE_OBJ) {
-		return STATUS_UNSUCCESSFUL;
-	}
-
-	if (objectFile->id == FileHandle) {
+	if (objectFile->id == FileHandle && objectFile->objectType == FILE_OBJ) {
 		PFILE_OBJECT myFile = objectFile->objectPtr;
 		STATUS fileStatus = IoReadFile(myFile, BytesToRead, &myFile->CurrentByteOffset, Buffer, BytesRead);
 		if (!SUCCEEDED(fileStatus)) {
@@ -588,17 +583,11 @@ SyscallFileClose(
 	}
 
 	PObjectInfo objectFile = CONTAINING_RECORD(hashTableFileEntry, ObjectInfo, HashEntry);
-
-	if (objectFile->objectType != FILE_OBJ) {
-		return STATUS_UNSUCCESSFUL;
-	}
-
-	if (objectFile->id == FileHandle) {
+	if (objectFile->id == FileHandle && objectFile->objectType == FILE_OBJ) {
 		PFILE_OBJECT myFile = objectFile->objectPtr;
-		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&objectFile->HashEntry);
+		HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&objectFile->id);
 		STATUS fileStatus = IoCloseFile(myFile);
 		if (!SUCCEEDED(fileStatus)) {
-			LOG("COULD NOT CLOSE THE FILE!\n");
 			return STATUS_UNSUCCESSFUL;
 		}
 		return STATUS_SUCCESS;
