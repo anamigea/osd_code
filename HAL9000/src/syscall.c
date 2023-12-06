@@ -6,6 +6,7 @@
 #include "syscall_no.h"
 #include "mmu.h"
 #include "process_internal.h"
+#include "thread_internal.h"
 #include "dmp_cpu.h"
 #include "thread.h"
 #include "iomu.h"
@@ -133,6 +134,30 @@ SyscallHandler(
 			break;
 		case SyscallIdFileClose:
 			status = SyscallFileClose(
+				(UM_HANDLE)pSyscallParameters[0]
+			);
+			break;
+		case SyscallIdThreadCreate:
+			status = SyscallThreadCreate(
+				(PFUNC_ThreadStart)pSyscallParameters[0],
+				(PVOID)pSyscallParameters[1],
+				(UM_HANDLE*)pSyscallParameters[2]
+			);
+			break;
+		case SyscallIdThreadGetTid:
+			status = SyscallThreadGetTid(
+				(UM_HANDLE)pSyscallParameters[0],
+				(TID*)pSyscallParameters[1]
+			);
+			break;
+		case SyscallIdThreadWaitForTermination:
+			status = SyscallThreadWaitForTermination(
+				(UM_HANDLE)pSyscallParameters[0],
+				(STATUS*)pSyscallParameters[1]
+			);
+			break;
+		case SyscallIdThreadCloseHandle:
+			status = SyscallThreadCloseHandle(
 				(UM_HANDLE)pSyscallParameters[0]
 			);
 			break;
@@ -602,6 +627,198 @@ SyscallThreadExit(
 )
 {
 	ThreadExit(ExitStatus);
+
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadCreate(
+	IN      PFUNC_ThreadStart       StartFunction,
+	IN_OPT  PVOID                   Context,
+	OUT     UM_HANDLE* ThreadHandle
+)
+{
+
+	//check if params are valid
+	if (StartFunction == NULL) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+	if (Context == NULL) {
+		return STATUS_INVALID_PARAMETER2;
+	}
+	if (ThreadHandle == NULL) {
+		return STATUS_INVALID_PARAMETER3;
+	}
+
+	//get current process
+	PPROCESS currentProcess = GetCurrentProcess();
+	//declare the thread to be created
+	PTHREAD createdThread;
+
+	//create the thread using ThreadCreateEx because we declare the process it belongs to
+	STATUS threadCreationStatus = ThreadCreateEx("Created thread", ThreadPriorityDefault, StartFunction, Context, &createdThread, currentProcess);
+
+	//check status
+	if (!SUCCEEDED(threadCreationStatus)) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//LOG("***THREAD CREATED***\n");
+
+	//if status correct, insert the thread in the hashtable
+	UM_HANDLE currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
+	currentIndex += 1;
+
+	PObjectInfo OwnObjectInfo = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(ObjectInfo), HEAP_PROCESS_TAG, 0);
+
+	if (OwnObjectInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	OwnObjectInfo->id = currentIndex;
+	OwnObjectInfo->objectPtr = createdThread;
+	OwnObjectInfo->objectType = THREAD_OBJECT;
+	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
+
+	HashTableInsert(&currentProcess->ProcessHashTable, &OwnObjectInfo->HashEntry);
+	//LOG("***THREAD INSERTED***\n");
+
+	*ThreadHandle = OwnObjectInfo->id;
+
+	return STATUS_SUCCESS;
+}
+
+
+STATUS
+SyscallThreadGetTid(
+	IN_OPT  UM_HANDLE               ThreadHandle,
+	OUT     TID* ThreadId
+)
+{
+	//if (ThreadHandle <= 0) {
+	//	return STATUS_INVALID_PARAMETER1;
+	//}
+
+	if (ThreadHandle == UM_INVALID_HANDLE_VALUE) {
+		//get current thread
+		PTHREAD currentThread = GetCurrentThread();
+		if (currentThread == NULL) {
+			return STATUS_UNSUCCESSFUL;
+		}
+		*ThreadId = currentThread->Id;
+
+		return STATUS_SUCCESS;
+	}
+
+	//get current process
+	PPROCESS currentProcess = GetCurrentProcess();
+	//get object info value from the UM_HANDLE key
+	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ThreadHandle);
+	PObjectInfo objectInfo = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+
+	//check if key has entry
+	if (objectInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//check object type
+	if (objectInfo->objectType != THREAD_OBJECT) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//get current thread ptr
+	PTHREAD currentThread;
+
+	currentThread = objectInfo->objectPtr;
+
+	//assign Id value to ThreadId
+	*ThreadId = currentThread->Id;
+
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadWaitForTermination(
+	IN      UM_HANDLE               ThreadHandle,
+	OUT     STATUS* TerminationStatus
+)
+{
+	if (ThreadHandle == UM_INVALID_HANDLE_VALUE || ThreadHandle <= 0) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+
+	//get current process
+	PPROCESS currentProcess = GetCurrentProcess();
+
+	//get object entry
+	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ThreadHandle);
+
+	if (hashTableProcessEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	PObjectInfo objectInfo = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+
+	//check if key has entry
+	if (objectInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//check object type
+	if (objectInfo->objectType != THREAD_OBJECT) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//get current thread ptr
+	PTHREAD currentThread;
+
+	currentThread = objectInfo->objectPtr;
+
+	//call ThreadWaitForTermination
+	ThreadWaitForTermination(currentThread, TerminationStatus);
+
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadCloseHandle(
+	IN      UM_HANDLE               ThreadHandle
+)
+{
+	if (ThreadHandle == UM_INVALID_HANDLE_VALUE || ThreadHandle <= 0) {
+		return STATUS_INVALID_PARAMETER1;
+	}
+
+	//get current process
+	PPROCESS currentProcess = GetCurrentProcess();
+
+	//get object entry
+	PHASH_ENTRY hashTableProcessEntry = HashTableLookup(&currentProcess->ProcessHashTable, (PHASH_KEY)&ThreadHandle);
+
+	if (hashTableProcessEntry == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	PObjectInfo objectInfo = CONTAINING_RECORD(hashTableProcessEntry, ObjectInfo, HashEntry);
+
+	//check if key has entry
+	if (objectInfo == NULL || objectInfo->objectType != THREAD_OBJECT) {
+		//LOG("***NOT FOUND***\n");
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	//get corresponding thread ptr
+	PTHREAD currentThread;
+	//LOG("***OBJ FOUND***\n");
+
+	currentThread = objectInfo->objectPtr;
+
+	//remove obj entry from hash table
+	HashTableRemove(&currentProcess->ProcessHashTable, (PHASH_KEY)&ThreadHandle);
+	//LOG("***OBJ REMOVED***\n");
+
+	//call ThreadCloseHandle
+	ThreadCloseHandle(currentThread);
 
 	return STATUS_SUCCESS;
 }
