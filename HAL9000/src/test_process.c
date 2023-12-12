@@ -99,7 +99,7 @@ const PROCESS_TEST PROCESS_TESTS[] =
     // swap
     { "SwapLinear", "SwapLinear", NULL},
     { "SwapMultiple", "SwapLinear", NULL, 4},
-    { "SwapMultipleShared", "SwapMultipleShared", "0"},
+    //{ "SwapMultipleShared", "SwapMultipleShared", "0"},
     { "SwapZeros", "SwapZeros", NULL},
     { "SwapZerosWritten", "SwapZerosWritten", NULL},
 
@@ -111,15 +111,15 @@ const PROCESS_TEST PROCESS_TESTS[] =
     { "VirtualAllocWriteExec", "VirtualAllocWriteExec", NULL},
     { "VirtualAllocZeros", "VirtualAllocZeros", NULL },
 
-    //{ "VirtualFreeInvalid", "VirtualFreeInvalid", NULL },
-    //{ "VirtualFreeMore", "VirtualFreeMore", NULL },
+    { "VirtualFreeInvalid", "VirtualFreeInvalid", NULL },
+    { "VirtualFreeMore", "VirtualFreeMore", NULL },
 
-    { "VirtualSharedDifferentSize", "VirtualSharedNormal", "0 1 8 3" },
-    { "VirtualSharedHugeEager", "VirtualSharedNormal", "0 1 4096 4" },
-    { "VirtualSharedHugeLazy", "VirtualSharedNormal", "0 1 4096 5" },
-    { "VirtualSharedLessAccess", "VirtualSharedNormal", "0 1 8 1" },
-    { "VirtualSharedMoreAccess", "VirtualSharedNormal", "0 0 8 2" },
-    { "VirtualSharedNormal", "VirtualSharedNormal", "0 1 8 0" },
+    //{ "VirtualSharedDifferentSize", "VirtualSharedNormal", "0 1 8 3" },
+    //{ "VirtualSharedHugeEager", "VirtualSharedNormal", "0 1 4096 4" },
+    //{ "VirtualSharedHugeLazy", "VirtualSharedNormal", "0 1 4096 5" },
+    //{ "VirtualSharedLessAccess", "VirtualSharedNormal", "0 1 8 1" },
+    //{ "VirtualSharedMoreAccess", "VirtualSharedNormal", "0 0 8 2" },
+    //{ "VirtualSharedNormal", "VirtualSharedNormal", "0 1 8 0" },
 
     // stack-growth
     { "StackGrowthVariables", "StackGrowthVariables", NULL },

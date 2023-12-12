@@ -499,7 +499,7 @@ SyscallFileCreate(
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
 	// When the quota for files open is reached then that process should not be able to
-	//open any additional files until it closes another filele.
+	//open any additional files until it closes another files
 	if(currentProcess->NoOfOpenFiles >= PROCESS_MAX_OPEN_FILES)
 	{
 		return STATUS_UNSUCCESSFUL;
@@ -895,7 +895,17 @@ SyscallVirtualFree(
 )
 {
 	PPROCESS Process = GetCurrentProcess();
-	// verify to not to free a virtual memory region larger than the one we allocated
+	if (Size != 0 && IsBooleanFlagOn(FreeType, VMM_FREE_TYPE_RELEASE)) {
+		return STATUS_UNSUCCESSFUL;
+	}
+	if(Size <= 0 && IsBooleanFlagOn(FreeType, VMM_FREE_TYPE_DECOMMIT)) {
+		return STATUS_INVALID_PARAMETER2;
+	}
+	// Check if both VMM_FREE_TYPE_RELEASE and VMM_FREE_TYPE_DECOMMIT free types are specified
+	if ((FreeType & VMM_FREE_TYPE_RELEASE) && (FreeType & VMM_FREE_TYPE_DECOMMIT)) {
+		return STATUS_INVALID_PARAMETER3;
+	}
+
 	VmmFreeRegionEx(Address, Size, FreeType, TRUE, Process->VaSpace, Process->PagingData);
 	return STATUS_SUCCESS;
 }

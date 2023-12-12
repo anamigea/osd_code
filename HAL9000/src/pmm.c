@@ -181,14 +181,15 @@ PmmReserveMemoryEx(
     }
 
     // count no of frames for process
-    PPROCESS pSystemProcess = GetCurrentProcess();
-    if( NULL != pSystemProcess )
+    PPROCESS pProcess = GetCurrentProcess();
+    if( NULL != pProcess )
 	{
-		//LOG("Process %s allocated %d frames\n", pSystemProcess->ProcessName, NoOfFrames);
-        for(DWORD i = 0; i < NoOfFrames; ++i)
-		{
-			_InterlockedIncrement(&pSystemProcess->NoOfPhysiscalFrames);
-		}
+        if (!ProcessIsSystem(pProcess)) {
+            for (DWORD i = 0; i < NoOfFrames; i++)
+            {
+                _InterlockedIncrement(&pProcess->NoOfPhysiscalFrames);
+            }
+        }
 	}
 
     LockRelease( &m_pmmData.AllocationLock, oldState);
@@ -216,9 +217,11 @@ PmmReleaseMemory(
 
     PPROCESS process = GetCurrentProcess();
     if (NULL != process) {
-    for (DWORD i = 0; i < NoOfFrames; ++i) {
-			_InterlockedDecrement(&process->NoOfPhysiscalFrames);
-		}
+        if (!ProcessIsSystem(process)) {
+            for (DWORD i = 0; i < NoOfFrames; ++i) {
+                _InterlockedDecrement(&process->NoOfPhysiscalFrames);
+            }
+        }
     }
     LockRelease( &m_pmmData.AllocationLock, oldState);
 }
