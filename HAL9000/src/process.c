@@ -533,7 +533,8 @@ _ProcessInit(
         pProcess->OwnObjectInfo->objectPtr = pProcess;
         pProcess->OwnObjectInfo->StdoutOpen = 1;
         pProcess->OwnObjectInfo->CurrentIndex = 1;
-
+        pProcess->NoOfOpenFiles = 0;
+        pProcess->NoOfPhysiscalFrames = 0;
 
         PHASH_TABLE_DATA pHashData;
         DWORD dataSize = HashTablePreinit(&pProcess->ProcessHashTable, 100, sizeof(UM_HANDLE));
