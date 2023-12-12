@@ -29,7 +29,6 @@ typedef struct
 
 } ObjectInfo, * PObjectInfo;
 
-
 typedef struct _PROCESS
 {
     REF_COUNT                       RefCnt;
@@ -83,6 +82,12 @@ typedef struct _PROCESS
     HASH_TABLE                      ProcessHashTable;
 
     PObjectInfo                     OwnObjectInfo;
+
+    _Interlocked_
+    volatile DWORD                           NoOfOpenFiles;
+
+    _Interlocked_
+    volatile DWORD                           NoOfPhysiscalFrames;
 
 } PROCESS, *PPROCESS;
 

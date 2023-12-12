@@ -9,7 +9,6 @@
 #include "pe_exports.h"
 #include "hash_table.h"
 
-
 typedef struct _PROCESS_SYSTEM_DATA
 {
     MUTEX           PidBitmapLock;
@@ -543,6 +542,9 @@ _ProcessInit(
             status = STATUS_HEAP_INSUFFICIENT_RESOURCES;
             __leave;
         }
+
+        pProcess->NoOfOpenFiles = 0;
+        pProcess->NoOfPhysiscalFrames = 0;
 
         //this would be an lternative to the ExAllocatePoolWithTag function or memzero
         //pHashData = malloc(dataSize);

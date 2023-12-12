@@ -4,6 +4,8 @@
 #include "bitmap.h"
 #include "synch.h"
 
+#include "process_internal.h"
+
 typedef struct _MEMORY_REGION_LIST
 {
     MEMORY_MAP_TYPE     Type;
@@ -178,6 +180,17 @@ PmmReserveMemoryEx(
         return NULL;
     }
 
+    // count no of frames for process
+    PPROCESS pSystemProcess = GetCurrentProcess();
+    if( NULL != pSystemProcess )
+	{
+		//LOG("Process %s allocated %d frames\n", pSystemProcess->ProcessName, NoOfFrames);
+        for(DWORD i = 0; i < NoOfFrames; ++i)
+		{
+			_InterlockedIncrement(&pSystemProcess->NoOfPhysiscalFrames);
+		}
+	}
+
     LockRelease( &m_pmmData.AllocationLock, oldState);
 
     return (PHYSICAL_ADDRESS) ( (QWORD) idx * PAGE_SIZE );
@@ -200,6 +213,13 @@ PmmReleaseMemory(
 
     LockAcquire( &m_pmmData.AllocationLock, &oldState);
     BitmapClearBits(&m_pmmData.AllocationBitmap, (DWORD) index, NoOfFrames);
+
+    PPROCESS process = GetCurrentProcess();
+    if (NULL != process) {
+    for (DWORD i = 0; i < NoOfFrames; ++i) {
+			_InterlockedDecrement(&process->NoOfPhysiscalFrames);
+		}
+    }
     LockRelease( &m_pmmData.AllocationLock, oldState);
 }
 

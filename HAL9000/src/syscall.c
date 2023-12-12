@@ -10,6 +10,7 @@
 #include "dmp_cpu.h"
 #include "thread.h"
 #include "iomu.h"
+#include "vmm.h"
 
 extern void SyscallEntry();
 
@@ -159,6 +160,24 @@ SyscallHandler(
 		case SyscallIdThreadCloseHandle:
 			status = SyscallThreadCloseHandle(
 				(UM_HANDLE)pSyscallParameters[0]
+			);
+			break;
+		case SyscallIdVirtualAlloc:
+			status = SyscallVirtualAlloc(
+				(PVOID)pSyscallParameters[0],
+				(QWORD)pSyscallParameters[1],
+				(VMM_ALLOC_TYPE)pSyscallParameters[2],
+				(PAGE_RIGHTS)pSyscallParameters[3],
+				(UM_HANDLE)pSyscallParameters[4],
+				(QWORD)pSyscallParameters[5],
+				(PVOID*)pSyscallParameters[6]
+			);
+			break;
+		case SyscallIdVirtualFree:
+			status = SyscallVirtualFree(
+				(PVOID)pSyscallParameters[0],
+				(QWORD)pSyscallParameters[1],
+				(VMM_FREE_TYPE)pSyscallParameters[2]
 			);
 			break;
 		default:
@@ -477,6 +496,15 @@ SyscallFileCreate(
 	OUT         UM_HANDLE* FileHandle
 )
 {
+	PPROCESS currentProcess;
+	currentProcess = GetCurrentProcess();
+	// When the quota for files open is reached then that process should not be able to
+	//open any additional files until it closes another filele.
+	if(currentProcess->NoOfOpenFiles >= PROCESS_MAX_OPEN_FILES)
+	{
+		return STATUS_UNSUCCESSFUL;
+	}
+
 	STATUS pathStatus = MmuIsBufferValid((PVOID)Path, PathLength, PAGE_RIGHTS_READ, GetCurrentProcess());
 	if (!SUCCEEDED(pathStatus))
 	{
@@ -508,9 +536,6 @@ SyscallFileCreate(
 		return createFile;
 	}
 
-
-	PPROCESS currentProcess;
-	currentProcess = GetCurrentProcess();
 	QWORD currentIndex = currentProcess->OwnObjectInfo->CurrentIndex;
 	currentIndex += 1;
 
@@ -524,6 +549,7 @@ SyscallFileCreate(
 	fileInfo->objectPtr = newFile;
 	fileInfo->objectType = FILE_OBJ;
 	currentProcess->OwnObjectInfo->CurrentIndex = currentIndex;
+	_InterlockedIncrement(&currentProcess->NoOfOpenFiles);
 
 	HashTableInsert(&currentProcess->ProcessHashTable, &fileInfo->HashEntry);
 
@@ -550,7 +576,7 @@ SyscallFileRead(
 	if (FileHandle == UM_FILE_HANDLE_STDOUT) {
 		return STATUS_INVALID_PARAMETER1;
 	}
-	
+
 	PPROCESS currentProcess;
 	currentProcess = GetCurrentProcess();
 	STATUS bufferStatus = MmuIsBufferValid(Buffer, sizeof(Buffer), PAGE_RIGHTS_READ, currentProcess);
@@ -615,6 +641,7 @@ SyscallFileClose(
 		if (!SUCCEEDED(fileStatus)) {
 			return STATUS_UNSUCCESSFUL;
 		}
+		_InterlockedDecrement(&currentProcess->NoOfOpenFiles);
 		return STATUS_SUCCESS;
 	}
 	else
@@ -820,5 +847,55 @@ SyscallThreadCloseHandle(
 	//call ThreadCloseHandle
 	ThreadCloseHandle(currentThread);
 
+	return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallVirtualAlloc(
+    IN_OPT      PVOID                   BaseAddress,
+    IN          QWORD                   Size,
+    IN          VMM_ALLOC_TYPE          AllocType,
+    IN          PAGE_RIGHTS             PageRights,
+    IN_OPT      UM_HANDLE               FileHandle,
+    IN_OPT      QWORD                   Key,
+    OUT         PVOID* AllocatedAddress
+)
+{
+	PPROCESS process = GetCurrentProcess();
+
+	//STATUS status = MmuIsBufferValid(BaseAddress, Size, PAGE_RIGHTS_READ | PAGE_RIGHTS_WRITE, process);
+	//if (!SUCCEEDED(status)) {
+	//	return STATUS_INVALID_PARAMETER1;
+	//}
+
+    // Check if both write and execute rights are specified
+    if ((PageRights & PAGE_RIGHTS_WRITE) && (PageRights & PAGE_RIGHTS_EXECUTE)) {
+        return STATUS_INVALID_PARAMETER4;
+    }
+
+    // We currently do not support mapping zero pages
+    if (IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_ZERO)) {
+        return STATUS_INVALID_PARAMETER3;
+    }
+
+    UNREFERENCED_PARAMETER(FileHandle);
+	UNREFERENCED_PARAMETER(Key);
+	*AllocatedAddress = VmmAllocRegionEx(BaseAddress, Size, AllocType, PageRights, FALSE, NULL, process->VaSpace, process->PagingData, NULL);
+	return STATUS_SUCCESS;
+}
+
+
+STATUS
+SyscallVirtualFree(
+	IN          PVOID                   Address,
+	_When_(VMM_FREE_TYPE_RELEASE == FreeType, _Reserved_)
+	_When_(VMM_FREE_TYPE_RELEASE != FreeType, IN)
+	QWORD                   Size,
+	IN          VMM_FREE_TYPE           FreeType
+)
+{
+	PPROCESS Process = GetCurrentProcess();
+	// verify to not to free a virtual memory region larger than the one we allocated
+	VmmFreeRegionEx(Address, Size, FreeType, TRUE, Process->VaSpace, Process->PagingData);
 	return STATUS_SUCCESS;
 }
