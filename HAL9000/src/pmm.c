@@ -5,6 +5,7 @@
 #include "synch.h"
 
 #include "process_internal.h"
+#include "thread_internal.h"
 
 typedef struct _MEMORY_REGION_LIST
 {
@@ -181,16 +182,21 @@ PmmReserveMemoryEx(
     }
 
     // count no of frames for process
-    PPROCESS pProcess = GetCurrentProcess();
-    if( NULL != pProcess )
-	{
-        if (!ProcessIsSystem(pProcess)) {
+    PPROCESS pProcess = NULL;
+    PTHREAD thread = GetCurrentThread();
+    if (NULL != thread) {
+        pProcess = thread->Process;
+    }
+    if (NULL != pProcess)
+    {
+        pProcess = GetCurrentProcess();
+        if (ProcessIsSystem(pProcess) == FALSE) {
             for (DWORD i = 0; i < NoOfFrames; i++)
             {
                 _InterlockedIncrement(&pProcess->NoOfPhysiscalFrames);
             }
         }
-	}
+    }
 
     LockRelease( &m_pmmData.AllocationLock, oldState);
 
@@ -215,10 +221,16 @@ PmmReleaseMemory(
     LockAcquire( &m_pmmData.AllocationLock, &oldState);
     BitmapClearBits(&m_pmmData.AllocationBitmap, (DWORD) index, NoOfFrames);
 
-    PPROCESS process = GetCurrentProcess();
+
+    PPROCESS process = NULL;
+    PTHREAD thread = GetCurrentThread();
+    if (NULL != thread) {
+        process = thread->Process;
+    }
     if (NULL != process) {
-        if (!ProcessIsSystem(process)) {
-            for (DWORD i = 0; i < NoOfFrames; ++i) {
+        process = GetCurrentProcess();
+        if (ProcessIsSystem(process) == FALSE) {
+            for (DWORD i = 0; i < NoOfFrames; i++) {
                 _InterlockedDecrement(&process->NoOfPhysiscalFrames);
             }
         }
