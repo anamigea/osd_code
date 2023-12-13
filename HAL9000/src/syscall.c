@@ -863,10 +863,9 @@ SyscallVirtualAlloc(
 {
 	PPROCESS process = GetCurrentProcess();
 
-	//STATUS status = MmuIsBufferValid(BaseAddress, Size, PAGE_RIGHTS_READ | PAGE_RIGHTS_WRITE, process);
-	//if (!SUCCEEDED(status)) {
-	//	return STATUS_INVALID_PARAMETER1;
-	//}
+	if (Size <= 0) {
+		return STATUS_INVALID_PARAMETER2;
+	}
 
     // Check if both write and execute rights are specified
     if ((PageRights & PAGE_RIGHTS_WRITE) && (PageRights & PAGE_RIGHTS_EXECUTE)) {

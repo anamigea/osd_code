@@ -84,10 +84,12 @@ typedef struct _PROCESS
     PObjectInfo                     OwnObjectInfo;
 
     _Interlocked_
-    volatile DWORD                           NoOfOpenFiles;
+    volatile DWORD                  NoOfOpenFiles;
 
     _Interlocked_
-    volatile DWORD                           NoOfPhysiscalFrames;
+    volatile DWORD                  NoOfPhysiscalFrames;
+
+    PHYSICAL_ADDRESS 			    ZeroPagePhysiscalAddress;
 
 } PROCESS, *PPROCESS;
 

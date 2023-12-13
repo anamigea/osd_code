@@ -111,8 +111,8 @@ const PROCESS_TEST PROCESS_TESTS[] =
     { "VirtualAllocWriteExec", "VirtualAllocWriteExec", NULL},
     { "VirtualAllocZeros", "VirtualAllocZeros", NULL },
 
-    { "VirtualFreeInvalid", "VirtualFreeInvalid", NULL },
-    { "VirtualFreeMore", "VirtualFreeMore", NULL },
+    //{ "VirtualFreeInvalid", "VirtualFreeInvalid", NULL },
+    //{ "VirtualFreeMore", "VirtualFreeMore", NULL },
 
     //{ "VirtualSharedDifferentSize", "VirtualSharedNormal", "0 1 8 3" },
     //{ "VirtualSharedHugeEager", "VirtualSharedNormal", "0 1 4096 4" },

@@ -190,6 +190,11 @@ PmmReserveMemoryEx(
     if (NULL != pProcess)
     {
         pProcess = GetCurrentProcess();
+        if (pProcess->NoOfPhysiscalFrames >= PROCESS_MAX_PHYSICAL_FRAMES) {
+			// we can't allocate more frames
+            // SWAPPING mechanism must be invoked, which will pick one of the processes frames, swap it to disk and use it for another virtual memory allocation.
+			// call VmmSolvePageFault because there we made the changes for swapping
+        }
         if (ProcessIsSystem(pProcess) == FALSE) {
             for (DWORD i = 0; i < NoOfFrames; i++)
             {
