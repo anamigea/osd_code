@@ -7,6 +7,8 @@ typedef struct _FILE_OBJECT* PFILE_OBJECT;
 
 typedef struct _VMM_RESERVATION_SPACE* PVMM_RESERVATION_SPACE;
 
+typedef struct _VMM_RESERVATION* PVMM_RESERVATION;
+
 typedef struct _MDL *PMDL;
 
 _No_competing_thread_

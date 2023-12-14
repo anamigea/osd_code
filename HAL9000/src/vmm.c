@@ -22,6 +22,8 @@ typedef struct _VMM_DATA
     // No matter what CR3 we're using the same WB and UC indexes will be used
     BYTE                    WriteBackIndex;
     BYTE                    UncacheableIndex;
+
+    PHYSICAL_ADDRESS 			    ZeroPagePhysiscalAddress;
 } VMM_DATA, *PVMM_DATA;
 
 typedef
@@ -195,6 +197,8 @@ VmmInit(
                            NULL,
                            VMM_SIZE_FOR_RESERVATION_METADATA,
                            &m_vmmData.VmmReservationSpace);
+
+    m_vmmData.ZeroPagePhysiscalAddress = NULL;
 
     return STATUS_SUCCESS;
 }
@@ -538,7 +542,7 @@ VmmAllocRegionEx(
     ASSERT(Mdl == NULL || IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_NOT_LAZY));
 
     // We currently do not support mapping zero pages
-    ASSERT(!IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_ZERO));
+    //ASSERT(!IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_ZERO));
 
     // We cannot have both the Mdl and the FileObject non-NULL, the region either is already backed up by some physical
     // frames or it is backed up by a file, or it is not backed up by anything
@@ -569,6 +573,12 @@ VmmAllocRegionEx(
             __leave;
         }
         ASSERT(NULL != pBaseAddress);
+
+        if (IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_ZERO)) {
+
+
+            //PagingData->Data.IsZeroPageMapped = TRUE;
+        }
 
         if (IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_NOT_LAZY))
         {
@@ -797,54 +807,95 @@ VmmSolvePageFault(
             PVOID alignedAddress;
 
             // solve #PF
+            if (PagingData->Data.IsZeroPageMapped == TRUE) {
+                if ((pageRights & PAGE_RIGHTS_READ) && !(pageRights & PAGE_RIGHTS_WRITE)) {
+                    // do not allocate page if it is read-only, just map it to the same frame
+                    pa = m_vmmData.ZeroPagePhysiscalAddress;
 
-            // 1. Reserve one frame of physical memory
-            pa = PmmReserveMemory(1);
-            ASSERT(NULL != pa);
-
-            alignedAddress = (PVOID)AlignAddressLower(FaultingAddress, PAGE_SIZE);
-
-            // 2. Map the aligned faulting address to the newly acquired physical frame
-            MmuMapMemoryInternal(pa,
-                                 PAGE_SIZE,
-                                 pageRights,
-                                 alignedAddress,
-                                 TRUE,
-                                 uncacheable,
-                                 PagingData
-                                 );
-
-            // 3. If the virtual address is backed by a file read its contents
-            if (pBackingFile != NULL)
-            {
-                LOGL("Will read data from file 0x%X and offset 0x%X\n", pBackingFile, fileOffset);
-
-                status = IoReadFile(pBackingFile,
-                                    PAGE_SIZE,
-                                    &fileOffset,
-                                    alignedAddress,
-                                    &bytesReadFromFile);
-                if (!SUCCEEDED(status))
-                {
-                    LOG_FUNC_ERROR("IoReadFile", status);
-                    __leave;
+                    MmuMapMemoryInternal(pa,
+										 PAGE_SIZE,
+										 pageRights,
+										 FaultingAddress,
+										 TRUE,
+										 uncacheable,
+										 PagingData
+					);
+                    bSolvedPageFault = TRUE;
                 }
+                else {
+					// allocate a new page and map it
+					pa = PmmReserveMemory(1);
+					ASSERT(NULL != pa);
 
-                LOGL("Bytes read 0x%X\n", bytesReadFromFile);
-                ASSERT(bytesReadFromFile <= PAGE_SIZE);
+					alignedAddress = (PVOID)AlignAddressLower(FaultingAddress, PAGE_SIZE);
+
+					MmuMapMemoryInternal(pa,
+                        				 PAGE_SIZE,
+                                         pageRights,
+                                         alignedAddress,
+                                         TRUE,
+                                         uncacheable,
+                                         PagingData
+                    );
+
+                    // zero the page
+                    __writecr0(__readcr0() & ~CR0_WP);
+                    memzero(alignedAddress, PAGE_SIZE);
+                    __writecr0(__readcr0() | CR0_WP);
+
+                    bSolvedPageFault = TRUE;
+                }
             }
 
-            // 4. Zero the rest of the memory (in case the remaining file size was smaller than a page
-            /// TODO: check if this is really necessary (we have a ZERO worker thread already!)
-            if (bytesReadFromFile != PAGE_SIZE)
-            {
-                /// TODO: Check if we really need to remove the WP (I'd rather not do this)
-                /// According to the Intel manual the WP flag has nothing to do with accessing UM pages
-                /// It is more generic, if WP is set => supervisor accesses can write to any virtual address
-                /// even if it is read-only
-                __writecr0(__readcr0() & ~CR0_WP);
-                memzero(PtrOffset(alignedAddress, bytesReadFromFile), PAGE_SIZE - (DWORD)bytesReadFromFile);
-                __writecr0(__readcr0() | CR0_WP);
+            if (bSolvedPageFault == FALSE) {
+                // 1. Reserve one frame of physical memory
+                pa = PmmReserveMemory(1);
+                ASSERT(NULL != pa);
+
+                alignedAddress = (PVOID)AlignAddressLower(FaultingAddress, PAGE_SIZE);
+
+                // 2. Map the aligned faulting address to the newly acquired physical frame
+                MmuMapMemoryInternal(pa,
+                    PAGE_SIZE,
+                    pageRights,
+                    alignedAddress,
+                    TRUE,
+                    uncacheable,
+                    PagingData
+                );
+
+                // 3. If the virtual address is backed by a file read its contents
+                if (pBackingFile != NULL)
+                {
+                    LOGL("Will read data from file 0x%X and offset 0x%X\n", pBackingFile, fileOffset);
+
+                    status = IoReadFile(pBackingFile,
+                        PAGE_SIZE,
+                        &fileOffset,
+                        alignedAddress,
+                        &bytesReadFromFile);
+                    if (!SUCCEEDED(status))
+                    {
+                        LOG_FUNC_ERROR("IoReadFile", status);
+                        __leave;
+                    }
+
+                    LOGL("Bytes read 0x%X\n", bytesReadFromFile);
+                    ASSERT(bytesReadFromFile <= PAGE_SIZE);
+                }
+
+                // 4. Zero the rest of the memory (in case the remaining file size was smaller than a page
+                /// TODO: check if this is really necessary (we have a ZERO worker thread already!)
+                if (bytesReadFromFile != PAGE_SIZE)
+                {
+                    /// TODO: Check if we really need to remove the WP (I'd rather not do this)
+                    /// According to the Intel manual the WP flag has nothing to do with accessing UM pages
+                    /// It is more generic, if WP is set => supervisor accesses can write to any virtual address
+                    /// even if it is read-only
+                    __writecr0(__readcr0() & ~CR0_WP);
+                    memzero(PtrOffset(alignedAddress, bytesReadFromFile), PAGE_SIZE - (DWORD)bytesReadFromFile);
+                    __writecr0(__readcr0() | CR0_WP);
+                }
             }
 
             if (NULL != pCpu)

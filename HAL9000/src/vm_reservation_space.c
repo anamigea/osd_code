@@ -41,6 +41,8 @@ typedef struct _VMM_RESERVATION
     // Describes which pages of the virtual memory reserved are actually
     // committed, i.e. which are valid when a #PF occurs
     BITMAP                  CommitBitmap;
+
+    BOOLEAN                 IsZeroPageMapped;
 } VMM_RESERVATION, *PVMM_RESERVATION;
 
 // 20% Will go for the list of reservations

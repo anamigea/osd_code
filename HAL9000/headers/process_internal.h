@@ -88,9 +88,6 @@ typedef struct _PROCESS
 
     _Interlocked_
     volatile DWORD                  NoOfPhysiscalFrames;
-
-    PHYSICAL_ADDRESS 			    ZeroPagePhysiscalAddress;
-
 } PROCESS, *PPROCESS;
 
 

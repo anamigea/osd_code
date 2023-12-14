@@ -545,7 +545,6 @@ _ProcessInit(
 
         pProcess->NoOfOpenFiles = 0;
         pProcess->NoOfPhysiscalFrames = 0;
-        pProcess->ZeroPagePhysiscalAddress = NULL;
 
         //this would be an lternative to the ExAllocatePoolWithTag function or memzero
         //pHashData = malloc(dataSize);

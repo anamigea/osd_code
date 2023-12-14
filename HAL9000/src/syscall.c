@@ -872,11 +872,6 @@ SyscallVirtualAlloc(
         return STATUS_INVALID_PARAMETER4;
     }
 
-    // We currently do not support mapping zero pages
-    if (IsBooleanFlagOn(AllocType, VMM_ALLOC_TYPE_ZERO)) {
-        return STATUS_INVALID_PARAMETER3;
-    }
-
     UNREFERENCED_PARAMETER(FileHandle);
 	UNREFERENCED_PARAMETER(Key);
 	*AllocatedAddress = VmmAllocRegionEx(BaseAddress, Size, AllocType, PageRights, FALSE, NULL, process->VaSpace, process->PagingData, NULL);

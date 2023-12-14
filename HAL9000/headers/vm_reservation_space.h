@@ -31,7 +31,7 @@ typedef struct _VMM_RESERVATION_SPACE
 
 //******************************************************************************
 // Function:     VmReservationSpaceInit
-// Description:  
+// Description:
 // Returns:      void
 // Parameter:    IN PVOID ReservationMetadataBaseAddress - represents the virtual
 //               address where the metadata describing the virtual reservations
